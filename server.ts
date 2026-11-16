@@ -1286,6 +1286,12 @@ async function startServer() {
     return next();
   });
 
+  // Google Search Console HTML file verification route
+  app.get('/google239ae2d0e50d07f1.html', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.status(200).send('google-site-verification: google239ae2d0e50d07f1.html');
+  });
+
   // Mount Vite in dev or static files in production
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) {
