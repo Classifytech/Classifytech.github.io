@@ -78,6 +78,17 @@ test('inferCategory accurately tags chipsets, AI, India launches, gaming, and 5G
 
   const net = inferCategory('New 5G spectrum auction details revealed', 'telecom band n78');
   assert.equal(net.category, '5G');
+
+  const china = inferCategory('Xiaomi 15 Pro debuts in China with 6100mAh battery', 'China exclusive Leica flagship');
+  assert.equal(china.category, 'CHINA');
+  assert.equal(china.badge, 'CHINA EXCLUSIVE');
+
+  const huawei = inferCategory('Huawei Mate 70 Pro+ ships with HarmonyOS NEXT', 'Kirin 9020 domestic silicon');
+  assert.equal(huawei.category, 'CHINA');
+
+  const globalNews = inferCategory('Oppo Find X8 Pro global launch expands worldwide', 'International release confirmed');
+  assert.equal(globalNews.category, 'GLOBAL');
+  assert.equal(globalNews.badge, 'GLOBAL LAUNCH');
 });
 
 test('transformRssItemToArticle structures full article with polished source citation and safe url', () => {
@@ -121,3 +132,72 @@ test('transformRssItemToArticle cleans snippet artifacts and retains full paragr
   assert.ok(!article.fullBody.some(p => p.includes('The post appeared first on')), 'Feed signature should be stripped');
   assert.ok(!article.desc.endsWith('...'), 'Summary description should not be abruptly cut with ellipses');
 });
+
+test('fetchGlobalTrendingNews aggregates trending news or falls back cleanly to curated 12-hour global stories', async () => {
+  const { fetchGlobalTrendingNews } = await import('./rssParser.ts');
+  const failingFetch = (async () => new Response('', { status: 503 })) as typeof fetch;
+  const fallbackRes = await fetchGlobalTrendingNews({ fetchFn: failingFetch });
+  assert.equal(fallbackRes.source, 'curated-fallback');
+  assert.ok(fallbackRes.articles.length >= 10);
+  assert.ok(fallbackRes.articles.every((a) => Boolean(a.title && a.desc)));
+});
+
+test('Smartprix RSS feed is configured and fetchFeedWithCorsFallback falls back to AllOrigins XML proxy', async () => {
+  const {
+    SMARTPRIX_RSS_FEED_URL,
+    GSMARENA_RSS_FEED_URL,
+    CLASSIFY_YOUTUBE_RSS_URL,
+    fetchFeedWithCorsFallback,
+    parseRawXmlToRssItems,
+  } = await import('./rssParser.ts');
+
+  assert.equal(SMARTPRIX_RSS_FEED_URL, 'https://www.smartprix.com/bytes/feed/');
+  assert.equal(GSMARENA_RSS_FEED_URL, 'https://www.gsmarena.com/rss-news-reviews.php3');
+  assert.ok(CLASSIFY_YOUTUBE_RSS_URL.includes('UCp0jHiCTqxDYZ0Bi0sKUmbw'));
+  assert.ok(FREE_TECH_RSS_FEEDS.some((f) => f.rssUrl === SMARTPRIX_RSS_FEED_URL));
+  assert.equal(
+    formatSourceCredit('Smartprix Bytes', 'https://www.smartprix.com/bytes/oneplus-13-vs-iqoo-13/'),
+    'Smartprix'
+  );
+
+  const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title><![CDATA[OnePlus 13 vs iQOO 13 Camera & Gaming Comparison]]></title>
+          <link>https://www.smartprix.com/bytes/oneplus-13-vs-iqoo-13/</link>
+          <pubDate>Sun, 15 Nov 2026 12:00:00 GMT</pubDate>
+          <description><![CDATA[<p>Detailed Snapdragon 8 Elite flagship comparison between OnePlus 13 and iQOO 13 in India.</p>]]></description>
+        </item>
+      </channel>
+    </rss>`;
+
+  const parsedXml = parseRawXmlToRssItems(sampleXml);
+  assert.equal(parsedXml.length, 1);
+  assert.equal(parsedXml[0].title, 'OnePlus 13 vs iQOO 13 Camera & Gaming Comparison');
+
+  const mockCorsFallbackFetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('api.rss2json.com')) {
+      return new Response('', { status: 500 });
+    }
+    if (url.includes('api.allorigins.win')) {
+      return new Response(JSON.stringify({ contents: sampleXml }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response('', { status: 404 });
+  }) as typeof fetch;
+
+  const articles = await fetchFeedWithCorsFallback(
+    { name: 'Smartprix', rssUrl: SMARTPRIX_RSS_FEED_URL },
+    mockCorsFallbackFetch,
+    4
+  );
+  assert.equal(articles.length, 1);
+  assert.equal(articles[0].sourceName, 'Smartprix');
+  assert.equal(articles[0].sourceUrl, 'https://www.smartprix.com/bytes/oneplus-13-vs-iqoo-13/');
+});
+
+

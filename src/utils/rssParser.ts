@@ -133,6 +133,9 @@ export function cleanHtmlText(html: string): string {
  */
 export function formatSourceCredit(rawTitle: string, linkStr: string = ''): string {
   const combined = `${rawTitle || ''} ${linkStr || ''}`.toLowerCase();
+  if (combined.includes('smartprix')) {
+    return 'Smartprix';
+  }
   if (combined.includes('gsmarena')) {
     return 'GSMArena';
   }
@@ -192,6 +195,16 @@ const CONTEXTUAL_TECH_IMAGES: Record<string, string[]> = {
     'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
     'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80',
   ],
+  CHINA: [
+    'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
+  ],
+  GLOBAL: [
+    'https://images.unsplash.com/photo-1468436139062-f60a71c5c892?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=1200&q=80',
+  ],
   ALL: [
     'https://images.unsplash.com/photo-1468436139062-f60a71c5c892?auto=format&fit=crop&w=1200&q=80',
     'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=1200&q=80',
@@ -235,7 +248,7 @@ export function extractImageUrl(item: Rss2JsonItem, categoryKey: string = 'ALL')
 }
 
 /**
- * Upgrades thumbnail URLs to full-resolution counterparts where available.
+ * Upgrades thumbnail URLs to full-resolution counterparts where available (GSMArena & Smartprix).
  */
 function cleanAndUpgradeImageUrl(rawUrl: string): string {
   let url = rawUrl.replace(/&amp;/g, '&').trim();
@@ -243,6 +256,11 @@ function cleanAndUpgradeImageUrl(rawUrl: string): string {
   // GSMArena thumbnail upgrade: remove /-184x111/ or /-344x258/ subpath
   if (url.includes('gsmarena.com') && url.includes('/-')) {
     url = url.replace(/\/-[0-9]+x[0-9]+\//, '/');
+  }
+
+  // Smartprix WordPress/Bytes thumbnail upgrade: remove -150x150 or -300x169 suffix before extension
+  if (url.includes('smartprix.com')) {
+    url = url.replace(/-[0-9]{2,4}x[0-9]{2,4}(\.(?:jpg|jpeg|png|webp))/i, '$1');
   }
 
   return url;
@@ -254,10 +272,31 @@ function cleanAndUpgradeImageUrl(rawUrl: string): string {
  * mobile chipsets, India-specific launches, gaming, battery/charging, and 5G.
  */
 export function inferCategory(title: string, desc: string): {
-  category: 'ALL' | 'INDIA' | 'CHIPSET' | 'GAMING' | '5G';
+  category: 'ALL' | 'CHINA' | 'GLOBAL' | 'INDIA' | 'CHIPSET' | 'GAMING' | '5G';
   badge: string;
 } {
   const combined = `${title || ''} ${desc || ''}`.toLowerCase();
+
+  // China Market Exclusives & Domestic Flagships
+  if (
+    combined.includes('china exclusive') ||
+    combined.includes('chinese market') ||
+    combined.includes('in china') ||
+    combined.includes('harmonyos') ||
+    combined.includes('kirin 90') ||
+    combined.includes('mate 70') ||
+    combined.includes('pura 70') ||
+    combined.includes('originos') ||
+    combined.includes('redmi k80') ||
+    combined.includes('x200 pro mini') ||
+    combined.includes('xiaomi 15 pro') ||
+    combined.includes('huawei mate') ||
+    combined.includes('huawei pura') ||
+    combined.includes('nubia z70') ||
+    combined.includes('redmagic 10')
+  ) {
+    return { category: 'CHINA', badge: 'CHINA EXCLUSIVE' };
+  }
 
   // India Tech Launches & Regional Pricing
   if (
@@ -273,6 +312,21 @@ export function inferCategory(title: string, desc: string): {
     combined.includes('flipkart')
   ) {
     return { category: 'INDIA', badge: 'INDIA TECH LAUNCH' };
+  }
+
+  // Global Flagship Launches & Worldwide Keynotes
+  if (
+    combined.includes('global launch') ||
+    combined.includes('worldwide') ||
+    combined.includes('international launch') ||
+    combined.includes('global debut') ||
+    /\bmwc\b/.test(combined) ||
+    /\bces\b/.test(combined) ||
+    combined.includes('galaxy unpacked') ||
+    combined.includes('find x8') ||
+    combined.includes('magic 7 pro')
+  ) {
+    return { category: 'GLOBAL', badge: 'GLOBAL LAUNCH' };
   }
 
   // Gaming, Battery & Fast Charging
@@ -478,21 +532,27 @@ export function transformRssItemToArticle(
   };
 }
 
+export const SMARTPRIX_RSS_FEED_URL = 'https://www.smartprix.com/bytes/feed/';
+export const GSMARENA_RSS_FEED_URL = 'https://www.gsmarena.com/rss-news-reviews.php3';
+export const CLASSIFY_YOUTUBE_RSS_URL =
+  'https://www.youtube.com/feeds/videos.xml?channel_id=UCp0jHiCTqxDYZ0Bi0sKUmbw';
+export const ALLORIGINS_PROXY_BASE = 'https://api.allorigins.win/get?url=';
+
 /**
- * Free Curated Tech RSS Feed Endpoints (5 core text feeds).
+ * Free Curated Tech RSS Feed Endpoints (5 core feeds: Smartprix, GSMArena, Android Authority, 9to5Google, The Verge).
  */
 export const FREE_TECH_RSS_FEEDS = [
   {
+    name: 'Smartprix Bytes',
+    rssUrl: SMARTPRIX_RSS_FEED_URL,
+  },
+  {
     name: 'GSMArena Tech Wire',
-    rssUrl: 'https://www.gsmarena.com/rss-news-reviews.php3',
+    rssUrl: GSMARENA_RSS_FEED_URL,
   },
   {
     name: 'Android Authority Hardware Wire',
     rssUrl: 'https://www.androidauthority.com/feed/',
-  },
-  {
-    name: 'Gadgets 360 India Tech',
-    rssUrl: 'https://feeds.feedburner.com/gadgets360-latest',
   },
   {
     name: '9to5Google Android Wire',
@@ -504,25 +564,219 @@ export const FREE_TECH_RSS_FEEDS = [
   },
 ];
 
-/**
- * Curated YouTube Video RSS Feeds.
- * Prioritizes the official CLASSIFY TECH channel (@classifytech).
- */
 export const YOUTUBE_TECH_RSS_FEEDS = [
   {
-    name: 'CLASSIFY TECH Official YouTube',
+    name: 'CLASSIFY TECH Official',
     channelName: 'CLASSIFY TECH',
     isOfficial: true,
-    rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC_CLASSIFYTECH_OFFICIAL',
-    channelUrl: 'https://youtube.com/@classifytech',
+    rssUrl: CLASSIFY_YOUTUBE_RSS_URL,
+    channelUrl: 'https://www.youtube.com/channel/UCp0jHiCTqxDYZ0Bi0sKUmbw',
   },
   {
-    name: 'Android Authority Tech Video',
-    channelName: 'Android Authority',
+    name: 'Marques Brownlee (MKBHD)',
+    channelName: 'Marques Brownlee (MKBHD)',
     isOfficial: false,
-    rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCmSuI-YAq2E77g5h9kGz6zw',
-    channelUrl: 'https://youtube.com/@androidauthority',
+    rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCBJycsmduvYEL83R_U4JriQ',
+    channelUrl: 'https://www.youtube.com/@mkbhd',
+  },
+  {
+    name: 'Mrwhosetheboss',
+    channelName: 'Mrwhosetheboss',
+    isOfficial: false,
+    rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCMiJRAwDNSNzuYeN2uWa0pA',
+    channelUrl: 'https://www.youtube.com/@Mrwhosetheboss',
+  },
+  {
+    name: 'The Verge Tech Video Wire',
+    channelName: 'The Verge',
+    isOfficial: false,
+    rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCddiUEpeqJcYeBxX1IVBKvQ',
+    channelUrl: 'https://www.youtube.com/@TheVerge',
   },
 ];
 
+/**
+ * Parses raw RSS/Atom XML (from direct fetch or AllOrigins proxy) into standardized Rss2JsonItem objects.
+ */
+export function parseRawXmlToRssItems(xml: string): Rss2JsonItem[] {
+  if (!xml || typeof xml !== 'string') return [];
+  const items: Rss2JsonItem[] = [];
+  const itemMatches = xml.match(/<(?:item|entry)\b[\s\S]*?<\/(?:item|entry)>/gi) || [];
+
+  for (const block of itemMatches) {
+    const titleMatch = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+
+    const linkMatch =
+      block.match(/<link[^>]*href=["']([^"']+)["']/i) ||
+      block.match(/<link[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/i);
+    const link = linkMatch ? linkMatch[1].trim() : '';
+
+    const contentMatch = block.match(
+      /<(?:content:encoded|content)[^>]*>([\s\S]*?)<\/(?:content:encoded|content)>/i
+    );
+    const content = contentMatch ? contentMatch[1].trim() : '';
+
+    const descMatch =
+      block.match(/<media:description[^>]*>([\s\S]*?)<\/media:description>/i) ||
+      block.match(/<(?:description|summary)[^>]*>([\s\S]*?)<\/(?:description|summary)>/i);
+    const description = descMatch ? descMatch[1].trim() : '';
+
+    const pubDateMatch = block.match(
+      /<(?:pubDate|published|updated)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated)>/i
+    );
+    const pubDate = pubDateMatch ? pubDateMatch[1].trim() : '';
+
+    const thumbMatch =
+      block.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i) ||
+      block.match(/<(?:enclosure|media:content)[^>]*url=["']([^"']+)["']/i) ||
+      block.match(/<img[^>]+src=["']([^"']+)["']/i);
+    const thumbnail = thumbMatch ? thumbMatch[1].trim() : undefined;
+
+    const ytVideoIdMatch = block.match(/<yt:videoId>([^<]+)<\/yt:videoId>/i);
+    const guid = ytVideoIdMatch ? `yt:video:${ytVideoIdMatch[1].trim()}` : undefined;
+
+    if (title && (link || description || content)) {
+      items.push({
+        title,
+        link,
+        pubDate,
+        content: content || description,
+        description: description || content,
+        thumbnail,
+        guid,
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Fetches an individual RSS feed via `api.rss2json.com` first, falling back to `api.allorigins.win/get?url=`.
+ */
+export async function fetchFeedWithCorsFallback(
+  feed: { name: string; rssUrl: string },
+  fetchImpl: typeof fetch = fetch,
+  maxItems = 6
+): Promise<TechArticle[]> {
+  // 1. Primary: api.rss2json.com
+  try {
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.rssUrl)}`;
+    const res = await fetchImpl(apiUrl, { headers: { Accept: 'application/json' } });
+    if (res.ok) {
+      const data: Rss2JsonResponse = await res.json();
+      if (data.status === 'ok' && Array.isArray(data.items) && data.items.length > 0) {
+        const feedTitle = data.feed?.title || feed.name;
+        return data.items.slice(0, maxItems).map((item) => transformRssItemToArticle(item, feedTitle));
+      }
+    }
+  } catch {
+    // Proceed to AllOrigins fallback
+  }
+
+  // 2. Fallback: api.allorigins.win/get?url=
+  try {
+    const proxyUrl = `${ALLORIGINS_PROXY_BASE}${encodeURIComponent(feed.rssUrl)}`;
+    const res = await fetchImpl(proxyUrl, { headers: { Accept: 'application/json' } });
+    if (res.ok) {
+      const data = (await res.json()) as { contents?: string };
+      if (typeof data?.contents === 'string' && data.contents.length > 50) {
+        const rawItems = parseRawXmlToRssItems(data.contents);
+        if (rawItems.length > 0) {
+          return rawItems.slice(0, maxItems).map((item) => transformRssItemToArticle(item, feed.name));
+        }
+      }
+    }
+  } catch {
+    // Graceful silent fallback
+  }
+
+  return [];
+}
+
 export const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 Minutes
+
+export interface GlobalTrendingNewsResult {
+  articles: TechArticle[];
+  source: 'live-api' | 'rss-syndication' | 'curated-fallback';
+  updatedAt: string;
+}
+
+/**
+ * Fetches the hottest global trending tech stories from Smartprix (`https://www.smartprix.com/bytes/feed/`),
+ * GSMArena (`https://www.gsmarena.com/rss-news-reviews.php3`), and CLASSIFY TECH YouTube (`UCp0jHiCTqxDYZ0Bi0sKUmbw`)
+ * via backend `/api/news/rss` or direct `api.rss2json.com` + `api.allorigins.win` fallback.
+ */
+export async function fetchGlobalTrendingNews(options?: {
+  refresh?: boolean;
+  apiEndpoint?: string;
+  limit?: number;
+  fetchFn?: typeof fetch;
+}): Promise<GlobalTrendingNewsResult> {
+  const fetchImpl = options?.fetchFn ?? fetch;
+  const limit = Math.min(Math.max(6, options?.limit ?? 24), 40);
+  const endpoint =
+    options?.apiEndpoint || `/api/news/rss${options?.refresh ? '?refresh=true' : ''}`;
+
+  const { defaultTechArticles } = await import('../data/newsData.ts');
+  const freshArticles: TechArticle[] = [];
+  let resolvedSource: 'live-api' | 'rss-syndication' | 'curated-fallback' = 'curated-fallback';
+
+  // 1. Primary API / Backend RSS Syndication Hook
+  try {
+    const res = await fetchImpl(endpoint, { headers: { Accept: 'application/json' } });
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json?.articles) && json.articles.length > 0) {
+        freshArticles.push(...json.articles);
+        resolvedSource = 'live-api';
+      }
+    }
+  } catch {
+    // Proceed to direct client RSS syndication fallback
+  }
+
+  // 2. Direct Client Multi-Feed Syndication Fallback (Smartprix, GSMArena, YouTube UCp0jHiCTqxDYZ0Bi0sKUmbw, etc.)
+  if (freshArticles.length === 0) {
+    const feedsToQuery = [
+      ...FREE_TECH_RSS_FEEDS,
+      {
+        name: 'CLASSIFY TECH Official',
+        rssUrl: CLASSIFY_YOUTUBE_RSS_URL,
+      },
+    ];
+
+    const settled = await Promise.allSettled(
+      feedsToQuery.map((feed) => fetchFeedWithCorsFallback(feed, fetchImpl, 5))
+    );
+
+    for (const r of settled) {
+      if (r.status === 'fulfilled' && Array.isArray(r.value) && r.value.length > 0) {
+        freshArticles.push(...r.value);
+      }
+    }
+    if (freshArticles.length > 0) {
+      resolvedSource = 'rss-syndication';
+    }
+  }
+
+  // 3. Deduplicate and merge with curated 12-hour global tech stories
+  const seen = new Set<string>();
+  const merged: TechArticle[] = [];
+  for (const item of [...freshArticles, ...defaultTechArticles]) {
+    if (!item || !item.title) continue;
+    const key = item.title.toLowerCase().trim();
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+
+  return {
+    articles: merged.slice(0, limit),
+    source: resolvedSource,
+    updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+

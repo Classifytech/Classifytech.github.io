@@ -1,5 +1,3 @@
-import { GoogleGenAI, Type } from '@google/genai';
-
 export interface SynthesizedArticleResult {
   headline: string;
   leadSummary: string;
@@ -234,13 +232,8 @@ export function synthesizeWithDeterministicFallback(
   };
 }
 
-let quotaCooldownUntil = 0;
-let lastRequestTime = 0;
-const MIN_REQUEST_SPACING_MS = 2500; // Enforce at least 2.5s between Gemini calls (<= 5 RPM)
-
 /**
- * AI Editorial Synthesis Pipeline using @google/genai with automatic key rotation and deterministic fallback.
- * Uses gemini-2.5-flash as the primary model attempt and gemini-3.8-flash as fallback.
+ * Zero-Credit Editorial Synthesis Pipeline with in-memory caching and deterministic analysis.
  */
 export async function synthesizeOriginalTechArticle(
   rawTitle: string,
@@ -254,127 +247,6 @@ export async function synthesizeOriginalTechArticle(
     return cached;
   }
 
-  // If in quota cooldown or called too rapidly, gracefully use deterministic fallback
-  const now = Date.now();
-  if (now < quotaCooldownUntil || (now - lastRequestTime < MIN_REQUEST_SPACING_MS && lastRequestTime > 0)) {
-    const fallback = synthesizeWithDeterministicFallback(rawTitle, rawContent, sourceName, sourceUrl);
-    setCachedSynthesis(cacheKey, fallback);
-    return fallback;
-  }
-
-  const keys = getAvailableGeminiKeys();
-  if (keys.length === 0) {
-    const fallback = synthesizeWithDeterministicFallback(rawTitle, rawContent, sourceName, sourceUrl);
-    setCachedSynthesis(cacheKey, fallback);
-    return fallback;
-  }
-
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash'];
-  const attempts = Math.min(keys.length, 3);
-
-  for (let i = 0; i < attempts; i++) {
-    const activeKey = keys[(keyRotationIndex + i) % keys.length];
-    for (const modelName of modelsToTry) {
-      try {
-        lastRequestTime = Date.now();
-        const ai = new GoogleGenAI({
-          apiKey: activeKey,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
-        });
-
-        const prompt = `You are the Senior Technical Editor at CLASSIFY TECH, an independent consumer electronics and mobile hardware publication.
-
-TASK:
-Take the following raw tech announcement facts and synthesize an authoritative, 100% original journalistic tech article.
-NEVER copy verbatim sentences from the source facts. Restructure and analyze the information with technical depth and clarity.
-
-SOURCE FACTS:
-- Source Publisher: ${sourceName}
-- Raw Headline: ${rawTitle}
-- Source Details:
-${rawContent.slice(0, 2500)}
-
-EDITORIAL REQUIREMENTS:
-1. Headline: An engaging, original journalistic headline (do not copy the raw headline word-for-word).
-2. Lead Summary: One concise, high-impact summary sentence suitable for preview cards.
-3. Paragraphs: Provide an array of exactly 4 structured, rich paragraphs:
-   - Paragraph 1: Original Lead Summary explaining the announcement in an authoritative voice.
-   - Paragraph 2: Technical Architecture & Hardware Context (explain chipsets, display technologies, camera sensors, or cooling architecture).
-   - Paragraph 3: Market Impact & Availability (expected pricing, consumer value, and comparison with alternatives).
-   - Paragraph 4: CLASSIFY TECH Editorial Verdict & Future Outlook (balanced analytical opinion on what this means for consumers).
-4. Bullets: Exactly 3 to 4 analytical key takeaways.`;
-
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            systemInstruction:
-              'You are an expert tech journalist at CLASSIFY TECH. Write original, insightful, non-scraped journalism that adds architectural context and market insights.',
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                headline: { type: Type.STRING },
-                leadSummary: { type: Type.STRING },
-                paragraphs: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-                bullets: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-              },
-              required: ['headline', 'leadSummary', 'paragraphs', 'bullets'],
-            },
-          },
-        });
-
-        const responseText = response.text?.trim() || '';
-        if (responseText) {
-          const parsed = JSON.parse(responseText);
-          if (
-            parsed.headline &&
-            Array.isArray(parsed.paragraphs) &&
-            parsed.paragraphs.length >= 3
-          ) {
-            keyRotationIndex = (keyRotationIndex + 1) % keys.length;
-
-            const result: SynthesizedArticleResult = {
-              headline: parsed.headline.trim(),
-              leadSummary: parsed.leadSummary?.trim() || parsed.paragraphs[0].slice(0, 160) + '...',
-              paragraphs: parsed.paragraphs.map((p: string) => p.trim()),
-              bullets: Array.isArray(parsed.bullets) && parsed.bullets.length > 0
-                ? parsed.bullets.map((b: string) => b.trim())
-                : [
-                    'Hardware updates verified by CLASSIFY TECH analysis.',
-                    'Market implications evaluated across global and Indian consumer tiers.',
-                    'Detailed benchmarks to be updated upon retail deployment.',
-                  ],
-              sourceAttribution: `Reported with original editorial analysis by CLASSIFY TECH Desk; primary announcement via ${sourceName}.`,
-              isAiGenerated: true,
-            };
-
-            setCachedSynthesis(cacheKey, result);
-            return result;
-          }
-        }
-      } catch (err: any) {
-        const errMsg = String(err?.message || err || '');
-        if (
-          errMsg.includes('429') ||
-          errMsg.includes('RESOURCE_EXHAUSTED') ||
-          errMsg.includes('Quota exceeded') ||
-          errMsg.includes('rate-limit')
-        ) {
-          quotaCooldownUntil = Date.now() + 60000;
-          break;
-        }
-      }
-    }
-  }
-
-  // If Gemini keys failed or were exhausted, safely return the high-quality deterministic fallback
   const fallback = synthesizeWithDeterministicFallback(rawTitle, rawContent, sourceName, sourceUrl);
   setCachedSynthesis(cacheKey, fallback);
   return fallback;

@@ -1,6 +1,6 @@
 {
   "name": "CLASSIFY TECH - Tech News, Photography & Hardware Comparator",
-  "description": "CLASSIFY TECH: Worldwide and Indian Tech News, Smartphone Camera Photography Showcase, and 16-Point Hardware Comparator.",
+  "description": "CLASSIFY TECH: Unified Global & China Trending Tech News, Tipster Leaks, YouTube Review Summaries, Smart Link Shortener, and Smartphone Comparator.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

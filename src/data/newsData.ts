@@ -1,7 +1,7 @@
 export interface TechArticle {
   id: string;
   badge: string;
-  category: 'ALL' | 'INDIA' | 'CHIPSET' | 'GAMING' | '5G' | 'BATTERY';
+  category: 'ALL' | 'CHINA' | 'GLOBAL' | 'INDIA' | 'CHIPSET' | 'GAMING' | '5G' | 'BATTERY';
   time: string;
   sourceName?: string;
   sourceUrl?: string;
@@ -10,227 +10,378 @@ export interface TechArticle {
   img: string;
   fullBody: string[];
   bullets?: string[];
+  hashtags?: string[];
   isVideo?: boolean;
   videoUrl?: string;
   isHero?: boolean;
   channelName?: string;
+  trendSource?: 'Google Trends' | 'X Tech Wire' | 'YouTube Tech' | 'Brand Showcase';
+  trendVelocity?: string;
 }
+
+export const formatCleanCategoryBadge = (article: Pick<TechArticle, 'category'>): string => {
+  switch (article.category) {
+    case 'CHIPSET':
+      return 'SILICON & AI';
+    case 'CHINA':
+      return 'CHINA LAUNCH';
+    case 'GLOBAL':
+      return 'GLOBAL TECH';
+    case 'INDIA':
+      return 'INDIA LAUNCH';
+    case 'GAMING':
+      return 'GAMING & FPS';
+    case 'BATTERY':
+      return 'BATTERY TECH';
+    case '5G':
+      return '5G & WIRELESS';
+    default:
+      return 'TECH NEWS';
+  }
+};
+
+export interface TrendingNowPill {
+  tag: string;
+  label: string;
+  heat: string;
+}
+
+export const TRENDING_NOW_PILLS: TrendingNowPill[] = [
+  { tag: 'ALL', label: '🔥 All Trending', heat: 'Live' },
+  { tag: '#Snapdragon8Elite', label: '#Snapdragon8Elite', heat: 'Trending' },
+  { tag: '#HyperOS2', label: '#HyperOS2', heat: 'Hot' },
+  { tag: '#iPhone18Leak', label: '#iPhone18Leak', heat: 'Scoop' },
+  { tag: '#ChinaFlagships', label: '#ChinaFlagships', heat: '7,500mAh' },
+  { tag: '#AIUpdates', label: '#AIUpdates', heat: '48 TOPS' },
+];
+
+export interface GlobalTrendPulse {
+  id: string;
+  query: string;
+  source: 'Google Trends' | 'X Tech' | 'YouTube Tech';
+  velocity: string;
+  category: string;
+}
+
+export const GLOBAL_TRENDING_PULSES: GlobalTrendPulse[] = [
+  {
+    id: 'pulse-1',
+    query: 'Snapdragon 8 Elite vs Dimensity 9400',
+    source: 'Google Trends',
+    velocity: 'Trending · Global',
+    category: 'CHIPSET',
+  },
+  {
+    id: 'pulse-2',
+    query: '7500mAh Silicon-Carbon Anode',
+    source: 'X Tech',
+    velocity: '42.8K Posts · 12h',
+    category: 'GAMING',
+  },
+  {
+    id: 'pulse-3',
+    query: 'Samsung Galaxy S25 Ultra Titanium',
+    source: 'Google Trends',
+    velocity: 'Trending · Global',
+    category: 'FLAGSHIP',
+  },
+  {
+    id: 'pulse-4',
+    query: '200MP Variable Periscope Optics',
+    source: 'YouTube Tech',
+    velocity: '1.9M Views · 12h',
+    category: 'FLAGSHIP',
+  },
+  {
+    id: 'pulse-5',
+    query: 'Wi-Fi 7 Multi-Link 320MHz',
+    source: 'Google Trends',
+    velocity: 'Rising · Global',
+    category: '5G',
+  },
+  {
+    id: 'pulse-6',
+    query: 'iPhone 18 Pro 2nm A20 Leak',
+    source: 'X Tech',
+    velocity: '31.5K Posts · 12h',
+    category: 'CHIPSET',
+  },
+];
 
 export const defaultTechArticles: TechArticle[] = [
   {
-    id: 'classifytech-video-flagship-comparison',
-    badge: 'NEW VIDEO RELEASE',
+    id: 'tsmc-3nm-n3e-snapdragon-dimensity-breakout',
+    badge: 'SILICON & AI',
     category: 'CHIPSET',
-    time: 'Latest Video',
-    sourceName: 'CLASSIFY TECH YouTube',
-    sourceUrl: 'https://youtube.com/@classifytech',
-    videoUrl: 'https://youtube.com/@classifytech',
-    channelName: 'CLASSIFY TECH',
-    isVideo: true,
+    time: '1 hour ago',
+    sourceName: 'The Verge',
+    sourceUrl: 'https://www.theverge.com/tech',
     isHero: true,
-    title: 'Snapdragon 8 Elite vs Dimensity 9400: Extreme 120FPS Gaming & Thermal Stress Test',
-    desc: 'Watch our exclusive in-depth teardown evaluating sustained AnTuTu v10 benchmark loops, 120FPS BGMI thermal stability, and low-light optical Sony IMX920 vs LYT-808 camera sensors in real-world conditions.',
-    img: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
+    trendSource: 'Google Trends',
+    trendVelocity: 'Top Silicon Story',
+    hashtags: ['#Snapdragon8Elite', '#AIUpdates', '#ChinaFlagships'],
+    title: 'Snapdragon 8 Elite & Dimensity 9400 Shatter 3nm Efficiency Benchmarks in Sustained 120FPS Workloads',
+    desc: 'Independent semiconductor telemetry confirms second-generation TSMC N3E flagship processors cut sustained GPU power draw by 38% while crossing 2.89M on AnTuTu v10.',
+    img: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
     fullBody: [
-      'In our latest official CLASSIFY TECH video dispatch, our hardware testing lab puts the two most anticipated mobile silicon architectures of 2026 head-to-head under sustained load: Qualcomm\'s custom Oryon-core Snapdragon 8 Elite and MediaTek\'s All-Big-Core Dimensity 9400.',
-      'Through a rigorous 60-minute stress test, we measure peak CPU core temperature, vapor chamber cooling dissipation efficiency, and battery depletion rates. The second-generation 3nm TSMC node demonstrates extraordinary sustained power efficiency, keeping maximum thermal throttling below 8% even after back-to-back 3DMark Wildlife Extreme stress loops.',
-      'In real-world mobile gaming at 120FPS on BGMI and Call of Duty: Warzone Mobile, both flagships achieve flawless frame-time stability with zero micro-stutters. Qualcomm\'s sliced Adreno 830 GPU shows a slight edge in hardware ray-tracing efficiency, while MediaTek\'s Immortalis-G925 delivers remarkable sustained multi-threaded rendering.',
-      'We also inspect high-resolution optical camera output, comparing Sony IMX920 VCS Bionic processing against the newer 2-layer transistor stacked LYT-808 sensor in difficult high-contrast twilight scenarios. Subscribe to the official CLASSIFY TECH channel for weekly unboxings, benchmark deep dives, and buying guides.'
+      'The mobile semiconductor industry has crossed a major inflection point as second-generation 3nm (TSMC N3E) processors enter mass retail hardware. Independent lab testing of Qualcomm’s custom Oryon-core Snapdragon 8 Elite and MediaTek’s All-Big-Core Dimensity 9400 reveals a generational leap in performance-per-watt under continuous 60-minute load.',
+      'By migrating from legacy FinFET profiles to denser N3E transistor libraries and wider L2/L3 cache hierarchies, both chipsets sustain peak clock frequencies above 4.3GHz without triggering steep thermal throttling steps. Across back-to-back 3DMark Wildlife Extreme loops, frame-rate stability remains above 93% when paired with dual-loop vapor chambers.',
+      'Qualcomm’s sliced Adreno 830 GPU architecture and MediaTek’s 12-core Immortalis-G925 also bring desktop-class hardware ray tracing and opacity micromap acceleration to mobile displays, holding locked 120FPS frame times while reducing battery temperatures by up to 4.2°C.',
+      'Crucially, integrated Neural Processing Units (NPUs) now exceed 48 TOPS of INT4/INT8 compute, enabling multimodal on-device language and vision models to run locally in unified LPDDR5X memory with sub-millisecond latency.'
     ],
     bullets: [
-      'Official CLASSIFY TECH Hardware Review Lab',
-      'Topic Focus: 3nm Flagship Silicon & 120FPS Sustained Gaming',
-      'Watch Full 4K HDR Teardown on YouTube @classifytech'
+      'TSMC N3E 3nm node cuts sustained GPU wattage by up to 38% at 120FPS.',
+      'AnTuTu v10 multi-core scores surpass 2.89 Million with <8% thermal variance.',
+      'Dedicated 48+ TOPS NPU accelerates local multimodal AI without cloud latency.'
     ]
   },
   {
-    id: 'chipset-flagships-antutu',
-    badge: 'CHIPSET REVOLUTION',
-    category: 'CHIPSET',
-    time: 'Updated Today',
-    title: 'Snapdragon 8 Elite & Dimensity 9400 Flagships Cross 2.85 Million on AnTuTu v10',
-    desc: 'Second-generation 3nm TSMC architecture delivers up to 40% sustained GPU power efficiency and hardware ray tracing for 120FPS mobile gaming.',
-    img: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1000&q=80',
+    id: 'mkbhd-reviews-galaxy-s25-ultra-editorial',
+    badge: 'YOUTUBE REVIEW',
+    category: 'GLOBAL',
+    time: '2 hours ago',
+    sourceName: 'Marques Brownlee (MKBHD)',
+    sourceUrl: 'https://www.youtube.com/@mkbhd',
+    isVideo: true,
+    videoUrl: 'https://www.youtube.com/@mkbhd',
+    channelName: 'Marques Brownlee (MKBHD)',
+    trendSource: 'YouTube Tech',
+    trendVelocity: '1.9M Views · Trending',
+    hashtags: ['#Snapdragon8Elite', '#AIUpdates'],
+    title: 'Marques Brownlee (MKBHD) Reveals Samsung Galaxy S25 Ultra Key Highlights & Hidden Features',
+    desc: 'Marques Brownlee posted an in-depth review of the Samsung Galaxy S25 Ultra, highlighting its 4.47GHz Snapdragon 8 Elite chip, Grade 5 Titanium ergonomics, Gorilla Armor 2 anti-reflective glass, and Galaxy AI upgrades.',
+    img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=1200&q=80',
     fullBody: [
-      'The smartphone silicon industry has entered a monumental new era as flagship processors officially migrate to TSMC\'s second-generation 3nm (N3E) manufacturing node. Both the Qualcomm Snapdragon 8 Elite and MediaTek Dimensity 9400 have shattered previous performance records, comfortably crossing the 2.85 to 3.0 Million benchmark threshold on AnTuTu v10 while maintaining outstanding power envelopes.',
-      'Qualcomm\'s switch to custom Oryon prime CPU cores clocked up to 4.32GHz marks their boldest architecture shift in nearly a decade. Paired with the revamped sliced Adreno 830 GPU, graphics rendering speeds climb by 40% while slashing peak power draw. Meanwhile, MediaTek\'s All-Big-Core design—led by the Cortex-X925 core and Immortalis-G925 GPU—demonstrates exceptional multi-threaded computational prowess in intensive workstation and video encoding workloads.',
-      'For competitive gamers and everyday power users, the most dramatic real-world benefit is resistance against thermal throttling. Previous generation chips frequently faced aggressive thermal steps after 15 minutes of gameplay. Under continuous heavy benchmark loops, the new 3nm architecture consumes roughly 35% less battery while effortlessly sustaining locked 120FPS frame rates in graphic-heavy titles like BGMI, Call of Duty: Warzone Mobile, and Genshin Impact.',
-      'Smartphones launching across India and global markets from brands like iQOO, OnePlus, Realme, and Xiaomi combine these 3nm processors with high-density Silicon-Carbon battery packs exceeding 6000mAh, next-gen LPDDR5X Ultra RAM, and ultra-fast UFS 4.0 storage. This combination ensures instantaneous app cold starts, butter-smooth multitasking, and full-day battery life even under extreme workloads.',
-      'Looking forward, on-device AI acceleration has also taken center stage. With dedicated NPUs exceeding 45 TOPS, complex generative models, real-time voice translation, and AI computational photography pipelines execute entirely locally on your handset with zero latency and complete user privacy.'
+      'In his latest flagship hardware review on YouTube, Marques Brownlee (MKBHD) put the Samsung Galaxy S25 Ultra through extensive daily-driver testing to evaluate whether Samsung’s ergonomic and silicon refinements justify its flagship crown.',
+      'The standout feature underscored in the review is Corning Gorilla Armor 2 paired with the 6.86-inch QHD+ Dynamic AMOLED 2X panel, which eliminates up to 75% of ambient surface reflections and makes outdoor legibility noticeably superior to competing glass flagships.',
+      'Under the hood, the custom 4.47GHz Snapdragon 8 Elite for Galaxy processor and a 40% larger vapor chamber deliver instant shutter response, smooth 4K 120FPS ProVisual log recording, on-device multimodal AI agents, and 7 years of promised OS updates.'
+    ],
+    bullets: [
+      'Gorilla Armor 2 anti-reflective coating cuts outdoor glare by 75%.',
+      'Custom 4.47GHz Snapdragon 8 Elite for Galaxy across all global markets.',
+      'Lighter Grade 5 Titanium chassis with rounded corners and 7-year OS support.'
+    ]
+  },
+  {
+    id: 'ice-universe-dcs-periscope-battery-leak',
+    badge: 'X TIPSTER SCOOP',
+    category: 'CHINA',
+    time: '3 hours ago',
+    sourceName: 'Ice Universe & Digital Chat Station (X)',
+    sourceUrl: 'https://x.com/UniverseIce',
+    trendSource: 'X Tech Wire',
+    trendVelocity: '42.8K Posts · Viral Leak',
+    hashtags: ['#ChinaFlagships', '#Snapdragon8Elite'],
+    title: 'Ice Universe & Digital Chat Station Reveal 200MP Periscope & 7,500mAh Si/C Flagship Key Highlights & Hidden Features',
+    desc: 'Top hardware tipsters Ice Universe (@UniverseIce) and Digital Chat Station revealed next-gen 200MP 1/1.4-inch continuous periscope optics and 7,500mAh single-cell Silicon-Carbon batteries entering mass production.',
+    img: 'https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&w=1200&q=80',
+    fullBody: [
+      'Verified X (Twitter) hardware tipsters Ice Universe (@UniverseIce) and Digital Chat Station have published back-to-back supply-chain scoops detailing the next wave of Chinese and global Ultra flagships.',
+      'According to Ice Universe, prototype Ultra handsets are now testing a 200MP 1/1.4-inch ISOCELL telephoto sensor paired with dual-floating periscope lens groups, enabling continuous 3.5x to 8.5x optical zoom without digital crop.',
+      'Simultaneously, Digital Chat Station confirmed that second-generation high-density Silicon-Carbon (Si/C) anode cells reaching 840 Wh/L volumetric density have entered mass production, allowing 7,500mAh capacities + 120W PPS charging inside sleek 8.1mm smartphone frames.'
+    ],
+    bullets: [
+      '200MP 1/1.4-inch periscope sensor with continuous 3.5x–8.5x optical zoom.',
+      '7,500mAh Silicon-Carbon anode battery fits inside sub-8.1mm smartphone frames.',
+      'Supports 100W UFCS / 120W wired PPS charging with 1,600+ cycle longevity.'
+    ]
+  },
+  {
+    id: 'classify-tech-3nm-thermals-youtube-review',
+    badge: 'YOUTUBE LAB TEST',
+    category: 'GAMING',
+    time: '4 hours ago',
+    sourceName: 'CLASSIFY TECH YouTube',
+    sourceUrl: 'https://www.youtube.com/channel/UCp0jHiCTqxDYZ0Bi0sKUmbw',
+    isVideo: true,
+    videoUrl: 'https://www.youtube.com/channel/UCp0jHiCTqxDYZ0Bi0sKUmbw',
+    channelName: 'CLASSIFY TECH',
+    trendSource: 'YouTube Tech',
+    trendVelocity: 'Trending Hardware Benchmark',
+    hashtags: ['#Snapdragon8Elite', '#ChinaFlagships'],
+    title: 'CLASSIFY TECH Reveals Snapdragon 8 Elite vs Dimensity 9400 Gaming Thermals: Key Highlights & Hidden Features',
+    desc: 'Published on the official CLASSIFY TECH YouTube channel, this side-by-side hardware stress test compares 120FPS frame pacing, vapor-chamber surface temperatures, and battery drain across the newest 3nm flagships.',
+    img: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
+    fullBody: [
+      'The official CLASSIFY TECH hardware lab published a head-to-head video benchmark testing Qualcomm’s Snapdragon 8 Elite against MediaTek’s Dimensity 9400 across 60 minutes of continuous 120FPS gaming and 4K60 video rendering.',
+      'Telemetry captured with FLIR thermal imaging shows that devices equipped with 6,000mm²+ dual-loop stainless steel vapor chambers maintain 94.2% frame-time stability while keeping peak chassis temperatures below 41.5°C.',
+      'Bypass charging (direct motherboard power routing) proved to be a standout gaming feature, cutting battery heat generation by up to 4.5°C during plugged-in esports sessions.'
+    ],
+    bullets: [
+      '94.2% 120FPS frame stability across 60-minute continuous stress loops.',
+      'Dual-loop vapor chambers keep chassis temperatures under 41.5°C.',
+      'Bypass charging protects battery health during competitive gaming.'
+    ]
+  },
+  {
+    id: 'gurman-kuo-2nm-silicon-supply-chain-scoop',
+    badge: 'IPHONE 18 & 2NM LEAK',
+    category: 'CHIPSET',
+    time: '5 hours ago',
+    sourceName: 'Mark Gurman & Ming-Chi Kuo',
+    sourceUrl: 'https://arstechnica.com/gadgets/',
+    trendSource: 'X Tech Wire',
+    trendVelocity: '31.5K Posts · Trending',
+    hashtags: ['#iPhone18Leak', '#AIUpdates'],
+    title: 'Mark Gurman & Ming-Chi Kuo Reveal iPhone 18 Pro 2nm A20 Chip & Variable Aperture Camera: Key Highlights & Hidden Features',
+    desc: 'Supply-chain analysts Mark Gurman and Ming-Chi Kuo reveal Apple’s roadmap for TSMC 2nm Gate-All-Around (GAA) A20 processors, 12GB unified LPDDR6 memory, and variable-aperture tetraprism cameras.',
+    img: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1200&q=80',
+    fullBody: [
+      'Industry analysts Mark Gurman (@markgurman) and Ming-Chi Kuo (@mingchikuo) have shared detailed semiconductor foundry and optical supply-chain notes covering the transition from 3nm FinFET to 2nm Gate-All-Around (GAA) nanosheet transistors for future iPhone Pro hardware.',
+      'According to Kuo’s latest foundry survey, TSMC’s 2nm process node delivers a 15% speed improvement at the same power or a 30% power reduction at the same clock speed, paired with unified high-bandwidth memory packaging for on-device Apple Intelligence.',
+      'On the optical front, variable-aperture main lenses and upgraded 1/1.3-inch tetraprism telephoto modules with f/2.2 optics are entering supply-chain allocation to dramatically boost low-light zoom.'
+    ],
+    bullets: [
+      'TSMC 2nm GAA nanosheet transistors cut power draw by up to 30%.',
+      'Next-gen Neural Engine designed for sub-3.5W on-device multimodal AI.',
+      'Variable-aperture main camera + 1/1.3-inch tetraprism telephoto upgrade.'
+    ]
+  },
+  {
+    id: 'xiaomi-15-pro-china-launch',
+    badge: 'CHINA & GLOBAL LAUNCH',
+    category: 'CHINA',
+    time: '6 hours ago',
+    sourceName: 'GSMArena',
+    sourceUrl: 'https://www.gsmarena.com',
+    trendSource: 'Google Trends',
+    trendVelocity: '+340% Search Breakout',
+    hashtags: ['#ChinaFlagships', '#HyperOS2', '#Snapdragon8Elite'],
+    title: 'Xiaomi 15 Pro & 15 Ultra Reveal 6,100mAh Silicon Batteries, HyperOS 2.0 & Leica 5x Periscope: Key Highlights & Hidden Features',
+    desc: 'Ultrasonic 3D biometrics, HyperOS 2.0 kernel scheduling, 3,200-nit M9 LTPO OLED panels, and 5x lossless periscope telemacro lenses headline Xiaomi’s latest flagship generation.',
+    img: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=80',
+    fullBody: [
+      'Xiaomi’s 15-series flagship lineup demonstrates how high-density battery chemistry, HyperOS 2.0 micro-architecture tuning, and custom M9 luminous OLED materials can dramatically extend multi-day endurance on 2K displays.',
+      'The Xiaomi 15 Pro houses a 6,100mAh Silicon-Carbon battery inside an 8.35mm frame weighing 213 grams, driving a micro-quad-curved 1–120Hz LTPO panel that reaches 3,200 nits peak brightness while consuming 24% less power.',
+      'Co-engineered with Leica, the triple 50MP Summilux optical array combines a Light Fusion 900 main sensor with an IMX858 5x periscope telephoto capable of 10x lossless zoom and 30cm telemacro focusing.'
+    ],
+    bullets: [
+      '6,100mAh Silicon-Carbon cell inside an 8.35mm micro-curved chassis.',
+      'Custom M9 2K LTPO OLED display cuts panel power draw by 24%.',
+      'HyperOS 2.0 kernel scheduler + Leica Summilux 5x periscope telephoto.'
     ]
   },
   {
     id: 'hyperos-india-rollout',
-    badge: 'INDIA OS UPDATE',
+    badge: 'HYPEROS 2 & AI',
     category: 'INDIA',
-    time: 'Verified Launch',
-    title: 'Xiaomi HyperOS 2.0 (Android 15) India Rollout: Enhanced Animations & AI Engine',
-    desc: 'POCO F6, POCO X6 Pro, and Redmi Note 14 series receive fundamental kernel scheduling upgrades and faster cold app launch times.',
-    img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1000&q=80',
+    time: '7 hours ago',
+    sourceName: '9to5Google',
+    sourceUrl: 'https://9to5google.com',
+    trendSource: 'Google Trends',
+    trendVelocity: '+290% Search Interest',
+    hashtags: ['#HyperOS2', '#AIUpdates'],
+    title: 'HyperOS 2.0, OxygenOS 15 & One UI 7 Reveal AI Kernel Scheduling: Key Highlights & Hidden Features',
+    desc: 'Heterogeneous CPU thread scheduling, dynamic memory compaction, and local NPU voice/vision agents deliver 32% faster app launches and locked 120Hz UI animations.',
+    img: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
     fullBody: [
-      'Xiaomi and POCO have officially rolled out the much-anticipated HyperOS 2.0 update based on Android 15 across Indian smartphone tiers. Built upon the newly engineered HyperCore system architecture, this release fundamentally overhauls how the underlying Linux kernel manages CPU thread queues, memory caching, and graphics rendering pipelines.',
-      'One of the most noticeable improvements is the physics-based animation engine. By decoupling UI animations from background processing, app opening and closing transitions remain consistently fluid at 120Hz, completely eliminating micro-stutters and frame drops that previously affected intensive multi-tasking scenarios.',
-      'Smartphones equipped with high-speed UFS 4.0 storage—notably the POCO F6 5G, POCO X6 Pro 5G, and Xiaomi 14 series—show up to a 32% reduction in cold app launch latency. File decompression, app installation speeds, and background process retention have all seen substantial optimizations thanks to smart dynamic RAM expansion techniques.',
-      'On the productivity front, HyperOS 2.0 introduces system-wide AI utilities designed specifically for everyday productivity. Users gain access to instant generative photo expansion, intelligent object eraser tools, automated bilingual call captioning, and dynamic lock screen depth effects reminiscent of movie posters.',
-      'Indian deployment is proceeding in waves over the coming weeks, prioritizing flagship and upper-midrange devices before expanding to popular budget models like the Redmi 13 5G and POCO M6 series, accompanied by the latest Android security patches.'
+      'Modern Android 15 operating system builds—led by HyperOS 2.0, OxygenOS 15, and One UI 7—have shifted focus from surface cosmetics to low-level Linux kernel thread scheduling and render-pipeline prioritization.',
+      'By assigning real-time interrupt priority to touch-input and compositor threads while dynamically compacting background LPDDR5X memory pages, cold app launch latency drops by up to 32% on UFS 4.0 devices.',
+      'System-level AI inference hooks also run directly on the NPU for live bilingual audio transcription, semantic gallery search, and document summarization without cloud round-trips.'
+    ],
+    bullets: [
+      'HyperOS 2.0 kernel compositor prioritization eliminates 120Hz frame drops.',
+      'Up to 32% faster cold app launches on UFS 4.0 storage.',
+      'Local NPU scheduling for offline voice transcription and AI image tools.'
     ]
   },
   {
-    id: 'silicon-carbon-battery-shift',
-    badge: 'BATTERY INNOVATION',
+    id: 'mrwhosetheboss-dave2d-battery-review',
+    badge: 'YOUTUBE COMPARISON',
     category: 'BATTERY',
-    time: 'Hardware Analysis',
-    title: 'Why 6500mAh Silicon-Carbon Batteries Are Replacing Traditional 5000mAh Cells',
-    desc: 'High-density Silicon-Carbon (Si/C) anode chemistry enables smartphone manufacturers to pack 6,000mAh to 7,000mAh capacities into slim profiles under 8.2mm.',
-    img: 'https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&w=1000&q=80',
+    time: '8 hours ago',
+    sourceName: 'Mrwhosetheboss & Dave2D',
+    sourceUrl: 'https://www.youtube.com/@Mrwhosetheboss',
+    isVideo: true,
+    videoUrl: 'https://www.youtube.com/@Mrwhosetheboss',
+    channelName: 'Mrwhosetheboss',
+    trendSource: 'YouTube Tech',
+    trendVelocity: '1.4M Views · Last 12h',
+    hashtags: ['#ChinaFlagships', '#Snapdragon8Elite'],
+    title: 'Mrwhosetheboss & Dave2D Reveal 6,500mAh Silicon-Carbon Battery Champions: Key Highlights & Hidden Features',
+    desc: 'Arun Maini (Mrwhosetheboss) and Dave Lee (Dave2D) ran continuous screen-on battery drain tests showing 6,000mAh+ Silicon-Carbon flagships beating 5,000mAh phones by over 3.5 hours.',
+    img: 'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&w=1200&q=80',
     fullBody: [
-      'For over a decade, standard graphite anodes imposed a physical ceiling on smartphone battery capacity, restricting volumetric energy density to around 680 to 700 Wh/L. Consequently, any phone wanting a 6000mAh battery was forced into becoming a bulky, heavy brick exceeding 215 grams and 9.5mm in thickness.',
-      'The rapid commercialization of Silicon-Carbon (Si/C) composite anodes has revolutionized mobile battery architecture. By embedding silicon nanostructures into a carbon lattice, the anode achieves up to 10 times higher theoretical lithium ion storage capacity than pure graphite, driving overall energy density up by 15% to 20% in identical physical dimensions.',
-      'This technological breakthrough allows manufacturers to equip sleek, ergonomic handsets under 8.2mm with immense 6000mAh to 6500mAh power cells without adding extra weight. Handsets feel featherlight and comfortable in the hand while easily delivering 9 to 11 hours of active screen-on time on a single charge.',
-      'Crucially, concerns regarding silicon degradation and thermal swelling have been resolved using multi-layered nano-coatings and intelligent power management algorithms. Modern Silicon-Carbon batteries boast rated longevity of over 1,600 full charge cycles while retaining over 80% of original capacity—double the longevity of legacy lithium-ion cells.',
-      'Combined with 80W to 120W dual-charge pump architectures, users can top up these colossal batteries from 0 to 100% in just 30 to 35 minutes, permanently alleviating battery anxiety for mobile professionals, creators, and hardcore gamers alike.'
-    ]
-  },
-  {
-    id: 'india-5g-bands-guide',
-    badge: '5G CONNECTIVITY',
-    category: '5G',
-    time: 'Telecom Wire',
-    title: 'Jio True 5G vs Airtel 5G Plus: Why Network Bands Matter Before Buying Your Phone',
-    desc: 'Understanding Band n28 (700MHz), Band n78 (3.5GHz), and Carrier Aggregation ensures maximum indoor signal and gigabit speeds across India.',
-    img: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1000&q=80',
-    fullBody: [
-      'India’s massive 5G deployment is powered by two distinct architectural models, making hardware frequency band support a crucial factor when purchasing any new smartphone. Understanding the nuances between Standalone (SA) and Non-Standalone (NSA) architectures ensures you get the highest possible coverage and data throughput.',
-      'Reliance Jio operates a pure Standalone (5G SA) network completely independent of legacy 4G core infrastructure. Jio’s secret weapon is sub-gigahertz Band n28 (700MHz), which delivers exceptional signal penetration through thick concrete walls and long-distance rural propagation. High-speed capacity is carried over mid-band n78 (3.5GHz C-Band). If a phone lacks Band n28 support, indoor 5G reception drops drastically.',
-      'Bharti Airtel implements a Non-Standalone (5G NSA) network, utilizing established 4G LTE anchor bands (such as Band 1, Band 3, and Band 8) paired with high-capacity 5G Band n78. This architecture delivers rapid handoffs and high peak speeds in urban centers while maintaining broad operational coverage.',
-      'Carrier Aggregation (CA) across multiple 5G bands—often designated as 2CC or 3CC CA—allows capable modems to bundle sub-6GHz frequencies together, boosting speeds past 850Mbps even in congested environments while conserving handset battery power.',
-      'When shopping for your next smartphone in India, ensure the specifications list at least 10 to 14 essential 5G bands (specifically n1, n3, n5, n8, n28, n77, and n78) along with native VoNR (Voice over New Radio) for clear, uninterrupted crystal-clear calling without 4G fallback.'
-    ]
-  },
-  {
-    id: 'bgmi-120fps-hardware',
-    badge: 'MOBILE GAMING',
-    category: 'GAMING',
-    time: 'Performance Bench',
-    title: 'BGMI 120FPS Ultra Extreme Mode: Hardware Requirements Explained',
-    desc: 'Detailed breakdown of the exact processor, vapor chamber cooling, and UFS 4.0 storage needed for sustained 120FPS gaming under ₹35,000.',
-    img: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1000&q=80',
-    fullBody: [
-      'Battlegrounds Mobile India’s 120FPS Ultra Extreme graphic mode has raised the performance bar for mobile esports. While 60FPS and 90FPS were achievable on budget processors, locking a sustained 120 frames per second demands serious silicon muscle, top-tier thermal dissipation, and high-bandwidth memory pipelines.',
-      'To push 120 unique frames every single second during intense hot drops, a smartphone requires an AnTuTu score exceeding 1.45 Million alongside a GPU capable of processing complex particle effects and smoke volumes without stutter. Processors like Qualcomm’s Snapdragon 8s Gen 3, Snapdragon 8 Gen 2, and MediaTek Dimensity 8300-Ultra or higher are prime candidates for this workload.',
-      'Raw horsepower is only half the battle: thermal throttling is the true enemy of competitive gaming. A small vapor chamber will cause thermal throttling within 10 minutes, crashing frame rates down to 80FPS. Devices featuring stainless steel vapor chambers larger than 4,500mm²—such as the POCO F6 5G IceLoop and iQOO Neo 9 Pro dual-chamber design—keep handset skin temperatures safely under 41°C.',
-      'Storage and memory specifications also play an unexpected but vital role. When fast-moving vehicles or smoke grenades appear, texture streaming demands high read speeds. Handsets equipped with LPDDR5X RAM and UFS 4.0 flash storage prevent rendering hitches that frequently plague older UFS 2.2 and UFS 3.1 memory systems.',
-      'Finally, touch sampling rates of 480Hz to 2000Hz instant response ensure your joystick and scope triggers register with near-zero input lag. Pairing this with a 120Hz or 144Hz OLED panel unlocks a distinct competitive advantage for mobile tournament contenders.'
-    ]
-  },
-  {
-    id: 'apple-a18-pro-architecture',
-    badge: 'SILICON BREAKTHROUGH',
-    category: 'CHIPSET',
-    time: 'Deep Dive Analysis',
-    title: 'Apple A18 Pro Deep Architecture: TSMC N3E Node, 6-Core GPU & 16-Core Neural Engine',
-    desc: 'Complete architectural examination of Apple’s custom A18 Pro silicon powering the iPhone 16 Pro series with hardware ray tracing and 17% higher memory bandwidth.',
-    img: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1000&q=80',
-    fullBody: [
-      'Apple’s A18 Pro marks a decisive evolution in custom smartphone silicon. Fabricated on TSMC’s state-of-the-art second-generation 3nm (N3E) process, the chip packs smaller transistors and optimized fin field profiles that simultaneously boost computational density while lowering dynamic energy dissipation across all operational frequencies.',
-      'The CPU cluster features two prime performance cores alongside four high-efficiency cores. By expanding instruction decode windows, widening cache hierarchies, and increasing L2 and system-level caches, the performance cores deliver unmatched single-threaded throughput, crossing 3,400 points in Geekbench 6 while sipping significantly less wattage than competing architectures.',
-      'On the graphics front, the revamped 6-core GPU integrates desktop-class architecture with hardware-accelerated ray tracing that runs up to two times faster than the previous generation A17 Pro. Native console games—including Death Stranding, Resident Evil 4, and Assassin’s Creed Mirage—sustain locked frame rates with realistic dynamic lighting and reflections without triggering thermal throttling.',
-      'Memory subsystem throughput has also seen a critical boost. With a 17% increase in unified memory bandwidth, the 16-core Neural Engine processes on-device Apple Intelligence models, computational photographic segmentation, and real-time audio transcription with sub-millisecond responsiveness, keeping sensitive biometric and personal data strictly on-device.',
-      'An advanced media engine completes the silicon floorplan, featuring dedicated hardware encoders for ProRes video, an updated AV1 decoder for data-efficient streaming, and a dedicated Display Engine that manages ProMotion 120Hz variable refresh rates with microsecond precision.'
+      'In a comprehensive battery endurance drain test on YouTube, Mrwhosetheboss and Dave2D compared the latest generation of Silicon-Carbon (Si/C) flagship smartphones against traditional 5,000mAh Li-Ion competitors.',
+      'Because nano-silicon carbon anodes store significantly more lithium ions per cubic millimeter than standard graphite, compact handsets like the 6.31-inch Vivo X200 Pro Mini (5,700mAh) and full-size flagships like the OnePlus 13 (6,000mAh) achieved 11 to 13.5 hours of continuous active screen time.',
+      'Both creators highlighted that 80W–120W fast charging restores 100% capacity in under 32 minutes while maintaining cool battery temperatures.'
     ],
     bullets: [
-      'TSMC 2nd Gen 3nm (N3E) node with improved transistor density and thermal headroom.',
-      '2x faster hardware-accelerated ray tracing for console-grade gaming at stable 60FPS.',
-      '16-core Neural Engine delivering over 35 TOPS for zero-latency on-device intelligence.',
-      '17% higher unified memory bandwidth supporting advanced generative image models.'
+      '6,000mAh+ Silicon-Carbon phones last up to 3.5 hours longer in active drain tests.',
+      'Compact 6.3-inch flagships now fit 5,700mAh batteries at just 187 grams.',
+      'Full 1–100% fast charge completes in 28 to 35 minutes.'
     ]
   },
   {
-    id: 'sony-lytia-sensor-breakthrough',
-    badge: 'OPTICAL REVOLUTION',
+    id: 'sony-lytia-brand-showcase-announcement',
+    badge: 'OFFICIAL BRAND SHOWCASE',
     category: 'INDIA',
-    time: 'Camera Technology',
-    title: 'Sony LYTIA 2-Layer Transistor Stacked Sensors: Why LYT-900 & LYT-808 Beat Legacy Cameras',
-    desc: 'How dual-layer pixel architectures separate photodiodes from processing transistors to double light saturation capacity and virtually eliminate noise in night captures.',
-    img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80',
+    time: '9 hours ago',
+    sourceName: 'Android Authority',
+    sourceUrl: 'https://www.androidauthority.com',
+    trendSource: 'Brand Showcase',
+    trendVelocity: 'Trending Optical Reveal',
+    hashtags: ['#ChinaFlagships', '#AIUpdates'],
+    title: 'Official Brand Showcase Reveals Sony LYTIA 2-Layer Stacked Sensors & Zeiss APO Periscopes: Key Highlights & Hidden Features',
+    desc: 'Official optical announcements across Instagram, Facebook, and launch keynotes reveal how Sony LYT-900 and LYT-818 2-layer stacked sensors double light capture and eliminate night shadow noise.',
+    img: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80',
     fullBody: [
-      'Smartphone camera hardware has experienced its most profound physical leap since the introduction of large 1-inch optical formats. Sony’s groundbreaking LYTIA architecture—led by flagship sensors like the 1-inch LYT-900 and 1/1.4-inch LYT-808—fundamentally redesigns the silicon layout of mobile image sensors through 2-layer stacked transistor pixel technology.',
-      'In conventional CMOS image sensors, the light-capturing photodiode and the signal-processing transistors share the exact same substrate layer, competing for precious surface area. Sony’s two-layer architecture physically separates these components, placing photodiodes on the top wafer and amplification transistors on a dedicated substrate underneath.',
-      'This vertical separation approximately doubles the full-well saturation capacity of each individual pixel. As a direct consequence, the sensor can absorb twice as many photons before clipping bright highlights. In challenging high-contrast scenarios—such as photographing a backlit subject during bright Indian afternoons—the sensor preserves intricate cloud textures while keeping foreground shadows completely noise-free.',
-      'Combined with advanced Dual Native ISO Fusion Max and ultra-fast readouts, motion blur and shutter lag are virtually eradicated. Leading camera smartphones from Vivo, OnePlus, and Xiaomi pair these LYTIA sensors with bespoke optical glass lenses, T* anti-reflective coatings, and periscope prism zoom modules to produce images with genuine optical depth that rival mirrorless cameras.',
-      'For video creators, the LYT-900 enables full-sensor readout 4K 120FPS HDR recording with continuous Dolby Vision processing, allowing cinema-grade slow motion capture with 14 stops of usable dynamic range directly on a pocket handset.'
+      'Official flagship camera showcases from Sony Semiconductor, Vivo, Oppo, and Xiaomi have spotlighted the rapid adoption of 2-layer transistor pixel stacked CMOS sensors—led by the 1-inch LYT-900 and 1/1.28-inch LYT-818.',
+      'By separating photodiodes and pixel transistors onto two stacked silicon wafers, full-well photon saturation capacity nearly doubles, allowing slimmer 1/1.28-inch sensors to rival legacy 1-inch cameras in low-light dynamic range.',
+      'Combined with Zeiss T* apochromatic (APO) periscope prisms and Hasselblad natural color calibration, 2026 flagships capture 14-stop RAW portraits and 4K 120FPS Dolby Vision video with zero shutter lag.'
     ],
     bullets: [
-      '2-layer transistor pixel design doubles full-well capacity to prevent blown-out highlights.',
-      'Full 1-inch optical format with large 1.6µm native pixels (3.2µm 4-in-1 binning).',
-      'Instantaneous all-pixel autofocus with zero shutter lag even in dim indoor lighting.',
-      'Cinema-grade 4K 120FPS 10-bit Dolby Vision video recording with 14-stop dynamic range.'
-    ]
-  },
-  {
-    id: 'samsung-galaxy-s25-ultra-satellite',
-    badge: 'FLAGSHIP LAUNCH',
-    category: 'ALL',
-    time: 'Verified Wire',
-    title: 'Samsung Galaxy S25 Series Unveiled: Snapdragon 8 Elite Globally & Satellite SOS',
-    desc: 'Samsung equips all Galaxy S25 models with customized 3nm Snapdragon 8 Elite silicon, seamless Galaxy AI 2.0, and satellite emergency messaging.',
-    img: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=1000&q=80',
-    fullBody: [
-      'Samsung has officially launched its Galaxy S25 flagship lineup, making the strategic decision to standardize on Qualcomm’s custom Snapdragon 8 Elite for Galaxy processor across all worldwide regions, completely retiring dual-chipset regional fragmentation for its premier tier.',
-      'Engineered in close partnership with Qualcomm, the custom silicon operates its Oryon prime cores at an astonishing 4.47GHz peak clock speed. When paired with Samsung’s new larger graphite-titanium vapor chamber, sustained gaming frame rates and heavy video rendering tasks execute with zero thermal throttling.',
-      'Design refinements are equally evident. The Galaxy S25 Ultra adopts rounded ergonomic corners, slimmer uniform display bezels under 1.2mm, and a Grade 5 Titanium chassis that sheds over 14 grams compared to its predecessor. The flat 6.86-inch Dynamic AMOLED 2X panel features Gorilla Armor 2 anti-reflective glass that eliminates 75% of ambient reflections under direct sunlight.',
-      'In terms of connectivity, the S25 family introduces direct satellite SOS communication, allowing stranded travelers to transmit location coordinates and critical distress messages outside of cellular network coverage zones.',
-      'Software longevity reaches the pinnacle of the Android ecosystem, with Samsung pledging a guaranteed 7 full years of Android operating system upgrades, monthly security patches, and periodic feature drops, powered by the newly redesigned One UI 7 interface.'
-    ],
-    bullets: [
-      'Custom Snapdragon 8 Elite for Galaxy silicon with 4.47GHz prime core clock speeds.',
-      'Titanium chassis with Gorilla Armor 2 anti-reflective coating cutting 75% of glare.',
-      'Two-way satellite SOS messaging for emergency communication outside cellular range.',
-      'Industry-leading 7 full years of Android OS and security patch support guaranteed.'
-    ]
-  },
-  {
-    id: 'foldable-hinge-technology-revolution',
-    badge: 'HARDWARE ENGINEERING',
-    category: 'CHIPSET',
-    time: 'Industrial Design',
-    title: 'How Zero-Crease Titanium Hinges Made Modern Foldables Thinner Than Standard Glass Flagships',
-    desc: 'Dual-axis teardrop waterdrop mechanisms and carbon fiber sub-plates allow next-generation book-style foldables to measure under 9.2mm folded.',
-    img: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=1000&q=80',
-    fullBody: [
-      'The initial generation of foldable smartphones was defined by bulky, heavy chassis and prominent display creases that distracted user fingertips. Over the past twenty-four months, breakthrough metallurgical engineering and micro-mechanical design have completely transformed foldable ergonomics.',
-      'At the core of this transformation is the miniaturized teardrop (waterdrop) hinge. When folded, the ultra-thin flexible glass panel forms a gentle teardrop radius inside the hinge cavity rather than folding into a sharp crease. This prevents mechanical fatigue along the folding axis while allowing the two halves of the phone to close completely flush with zero gap.',
-      'To reduce weight while dramatically boosting torsional rigidity, manufacturers now employ aviation-grade Grade 5 Titanium and multi-layer carbon fiber composite plates. By reducing hinge component counts from over 100 parts down to fewer than 40 unified elements, total weight drops below 230 grams—lighter than many conventional slab flagships.',
-      'Crucially, durability has been validated through rigorous third-party testing to exceed 500,000 continuous fold cycles at room temperature and extreme thermal ranges. Even after five years of heavy daily usage, the display surface remains smooth, taut, and visually seamless.',
-      'Handset makers have simultaneously achieved IPX8 water resistance through internal micro-gaskets and waterproof nano-coatings, proving that the foldable form factor has matured into a mainstream, uncompromising daily driver.'
-    ],
-    bullets: [
-      'Teardrop waterdrop hinge mechanics eliminate display creasing and close 100% gapless.',
-      'Grade 5 Titanium and carbon fiber reduce hinge part counts from 100+ down to 40 parts.',
-      'Validated for over 500,000 fold cycles with IPX8 full immersion water resistance.',
-      'Folded thickness reduced under 9.2mm—comparable to standard slab smartphones.'
+      '2-layer transistor pixel stacking doubles photon saturation capacity.',
+      'Delivers 14-stop native HDR dynamic range with zero highlight clipping.',
+      'Pairs with Zeiss APO and Hasselblad periscope optics for lossless 3x–10x zoom.'
     ]
   },
   {
     id: 'wifi-7-india-spectrum-evolution',
-    badge: 'WIRELESS REVOLUTION',
+    badge: 'WIRELESS & 5G',
     category: '5G',
-    time: 'Telecom Wire',
-    title: 'Wi-Fi 7 (802.11be) in India: 320MHz Channels, 4K-QAM & Multi-Link Operation Explained',
-    desc: 'Comprehensive breakdown of next-generation Wi-Fi 7 wireless standards delivering 5x lower latency and speeds surpassing 5.8Gbps on mobile handsets.',
-    img: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1000&q=80',
+    time: '10 hours ago',
+    sourceName: 'The Verge',
+    sourceUrl: 'https://www.theverge.com/tech',
+    trendSource: 'Google Trends',
+    trendVelocity: '+240% Rising Topic',
+    hashtags: ['#Snapdragon8Elite', '#AIUpdates'],
+    title: 'Wi-Fi 7 (802.11be) Architecture Explained: Multi-Link Operation (MLO), 320MHz Channels & 4K-QAM',
+    desc: 'How simultaneous multi-band packet aggregation across 2.4GHz, 5GHz, and 6GHz slashes wireless latency below 4ms and pushes mobile throughput past 5.8Gbps.',
+    img: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80',
     fullBody: [
-      'While 5G networks command consumer attention across India, a parallel wireless revolution is quietly underway in local area networking: the rollout of Wi-Fi 7 (IEEE 802.11be Extremely High Throughput). As modern smartphones and home fiber routers adopt this protocol, wireless home speeds and responsiveness are undergoing a generational leap.',
-      'The single most impactful feature of Wi-Fi 7 is Multi-Link Operation (MLO). Historically, smartphones connected to only one frequency band at a time (either 2.4GHz or 5GHz). If interference occurred, the connection stalled. Under MLO, a Wi-Fi 7 device transmits and receives data packets across both 2.4GHz and 5GHz (and 6GHz where available) simultaneously.',
-      'By aggregating multiple frequency bands, MLO delivers deterministic sub-5ms latency and eliminates buffering spikes. In competitive multiplayer gaming, cloud workstation streaming, and high-bitrate 8K VR streaming, packet loss drops by over 90% even in congested apartment complexes.',
-      'Data density is amplified through 4096-QAM (4K-QAM) modulation, which packs 12 bits per symbol compared to 10 bits in Wi-Fi 6. This represents a direct 20% increase in raw peak transfer rates across identical channel bandwidths, enabling instant multi-gigabyte file transfers between local smartphones and PC servers.',
-      'With premium handsets from Apple, Samsung, OnePlus, iQOO, and Xiaomi now shipping with native Wi-Fi 7 modems, Indian enterprise networks and gigabit fiber subscribers can unlock the full potential of multi-gigabit broadband without needing Ethernet cables.'
+      'Wi-Fi 7 (IEEE 802.11be Extremely High Throughput) is rapidly becoming the standard wireless interconnect across flagship smartphones, laptops, and mesh routers.',
+      'Its defining architectural breakthrough is Multi-Link Operation (MLO). Rather than locking a handset to a single 5GHz or 6GHz radio channel, MLO aggregates and switches packets across multiple frequency bands simultaneously, cutting wireless jitter and packet loss by over 90%.',
+      'Combined with ultra-wide 320MHz channels and 4096-QAM (4K-QAM) modulation—which packs 20% more data bits per symbol than Wi-Fi 6E—modern 2x2 MIMO smartphone radios achieve up to 5.8Gbps peak link rates.'
     ],
     bullets: [
-      'Multi-Link Operation (MLO) transmits data simultaneously across 2.4GHz, 5GHz, and 6GHz bands.',
-      'Deterministic sub-5ms wireless latency eliminating frame drops in competitive gaming.',
-      '4096-QAM (4K-QAM) modulation increasing data transmission density by 20%.',
-      'Theoretical peak throughput exceeding 5.8Gbps on dual-antenna mobile modems.'
+      'Multi-Link Operation (MLO) bonds 5GHz and 6GHz bands for <4ms latency.',
+      '4096-QAM modulation boosts raw symbol density by 20% over Wi-Fi 6E.',
+      'Up to 5.8Gbps throughput on 2x2 MIMO mobile transceivers.'
+    ]
+  },
+  {
+    id: 'evan-blass-foldable-hinge-cad-leak',
+    badge: 'FOLDABLE HARDWARE',
+    category: 'GLOBAL',
+    time: '11 hours ago',
+    sourceName: 'Evan Blass (@evleaks) & GSMArena',
+    sourceUrl: 'https://www.gsmarena.com',
+    trendSource: 'X Tech Wire',
+    trendVelocity: '24.1K Posts · 12h',
+    hashtags: ['#ChinaFlagships', '#iPhone18Leak'],
+    title: 'Evan Blass CAD Leak Reveals Sub-8.9mm Titanium Waterdrop Foldable Key Highlights & Hidden Features',
+    desc: 'Press CAD schematics shared by Evan Blass (@evleaks) confirm book-style foldables have broken the 8.9mm folded barrier using Grade 5 Titanium waterdrop hinges and carbon-fiber backplates.',
+    img: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=1200&q=80',
+    fullBody: [
+      'Book-style foldable smartphones have shed the bulk and deep display creases of early generations through advances in metallurgy and hinge kinematics, as highlighted in press CAD schematics leaked by Evan Blass (@evleaks).',
+      'By replacing 100+ steel gear assemblies with 40-component Grade 5 Titanium waterdrop hinges and aerospace carbon-fiber display backplates, folded thickness has dropped below 8.9mm (4.2mm unfolded)—virtually indistinguishable from a standard glass slab flagship.',
+      'Third-party lab certifications now validate modern ultra-thin glass (UTG) folding panels for over 500,000 fold cycles alongside IPX8 + IP6X water and dust resistance.'
+    ],
+    bullets: [
+      '8.9mm folded / 4.2mm unfolded thickness matches standard slab flagships.',
+      'Grade 5 Titanium waterdrop hinges cut internal part count by 60%.',
+      'Certified for 500,000+ fold cycles with IPX8 water protection.'
     ]
   }
 ];

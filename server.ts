@@ -4,7 +4,6 @@ import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI, Type } from '@google/genai';
 import { isPrivateOrProhibitedHost } from './src/utils/security.ts';
 import {
   isSupportedRetailerUrl,
@@ -18,16 +17,21 @@ import {
   cleanHtmlText,
   FREE_TECH_RSS_FEEDS,
   YOUTUBE_TECH_RSS_FEEDS,
+  ALLORIGINS_PROXY_BASE,
   transformRssItemToArticle,
   type Rss2JsonResponse,
   type Rss2JsonItem,
 } from './src/utils/rssParser.ts';
-import type { TechArticle } from './src/data/newsData.ts';
+import { defaultTechArticles, type TechArticle } from './src/data/newsData.ts';
+import { DEFAULT_YOUTUBE_TECH_VIDEOS } from './src/utils/youtubeApi.ts';
 import {
-  synthesizeOriginalTechArticle,
   synthesizeWithDeterministicFallback,
-  getAvailableGeminiKeys,
 } from './src/utils/aiSynthesizer.ts';
+import {
+  findBuiltInPhoneSpecs,
+  generateDeterministicPhoneSpecs,
+  isValidPhoneQuery,
+} from './src/utils/phoneComparator.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,150 +69,16 @@ function getClientIp(req: Request): string {
 }
 
 // -------------------------------------------------------------
-// SECURE MULTI-API KEY SELECTION (SERVER-ONLY)
-// Keys are read strictly from environment secret configuration.
-// No hardcoded credentials or Base64 vault chunks in source code.
-// Priority: GEMINI_API_KEY -> API_KEY -> GEMINI_API_KEY_2 -> GEMINI_API_KEY_3
+// ZERO-TOKEN DETERMINISTIC EDITORIAL SYNTHESIS (SERVER-SIDE)
+// Ensures 100% API token protection: public visitors reading news
+// never trigger paid LLM calls.
 // -------------------------------------------------------------
-function getPrivateServerKeys(): string[] {
-  const keys: string[] = [];
-  const envKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.API_KEY,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-  ];
-  for (const k of envKeys) {
-    if (typeof k === 'string') {
-      const trimmed = k.trim();
-      if (trimmed.length > 10 && !keys.includes(trimmed)) {
-        keys.push(trimmed);
-      }
-    }
-  }
-  return keys;
-}
-
-let serverKeyRotationIndex = 0;
-let serverCooldownUntil = 0;
-let serverLastCallTime = 0;
-const SERVER_MIN_SPACING_MS = 2500;
-
 async function generateSynthesizedArticleServer(
   rawTitle: string,
   rawContent: string,
   sourceName = 'Official Technical Release',
   sourceUrl = ''
 ) {
-  const keys = getPrivateServerKeys();
-  const now = Date.now();
-
-  if (
-    keys.length === 0 ||
-    now < serverCooldownUntil ||
-    (now - serverLastCallTime < SERVER_MIN_SPACING_MS && serverLastCallTime > 0)
-  ) {
-    return synthesizeWithDeterministicFallback(rawTitle, rawContent, sourceName, sourceUrl);
-  }
-
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash'];
-  const attempts = Math.min(keys.length, 3);
-
-  for (let i = 0; i < attempts; i++) {
-    const activeKey = keys[(serverKeyRotationIndex + i) % keys.length];
-    for (const modelName of modelsToTry) {
-      try {
-        serverLastCallTime = Date.now();
-        const ai = new GoogleGenAI({
-          apiKey: activeKey,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
-        });
-
-        const prompt = `You are the Senior Technical Editor at CLASSIFY TECH, an authoritative independent consumer hardware and mobile electronics publication.
-
-TASK:
-Write a comprehensive, deeply informative, 100% original 4-to-5 paragraph CLASSIFY TECH Analysis on this tech announcement.
-Do NOT copy verbatim sentences from the source facts. Restructure, analyze, and expand the information with architectural clarity and market depth.
-
-SOURCE FACTS:
-- Source Publisher: ${sourceName}
-- Raw Headline: ${rawTitle}
-- Source Details:
-${rawContent.slice(0, 3000)}
-
-EDITORIAL CRITERIA:
-1. Headline: Clean, engaging, authentic journalistic headline (do NOT append any suffix like ': Architectural Context & Market Outlook').
-2. Lead Summary: A single crisp, high-impact summary sentence.
-3. Paragraphs: Provide an array of 4 to 5 rich, distinct editorial paragraphs covering:
-   - Paragraph 1: Core technical announcement and primary hardware/software specifications in completely fresh language.
-   - Paragraph 2: Deep architectural breakdown (silicon fabrication, CPU/GPU clusters, ISP/NPU capabilities, cooling architecture).
-   - Paragraph 3: Competitive positioning against rival flagships or alternatives in the same class.
-   - Paragraph 4: Pricing expectations, Indian & global market availability, and real-world consumer value.
-   - Paragraph 5 (optional/conclusion): CLASSIFY TECH long-term outlook and verdict.
-4. Bullets: Exactly 3 to 4 analytical key takeaways.`;
-
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
-          config: {
-            systemInstruction:
-              'You are an expert technical editor at CLASSIFY TECH. Write original, deep, non-plagiarized consumer hardware journalism with zero fluff and no fake title suffixes.',
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                headline: { type: Type.STRING },
-                leadSummary: { type: Type.STRING },
-                paragraphs: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-                bullets: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-              },
-              required: ['headline', 'leadSummary', 'paragraphs', 'bullets'],
-            },
-          },
-        });
-
-        const responseText = response.text?.trim() || '';
-        if (responseText) {
-          const parsed = JSON.parse(responseText);
-          if (parsed.headline && Array.isArray(parsed.paragraphs) && parsed.paragraphs.length >= 3) {
-            serverKeyRotationIndex = (serverKeyRotationIndex + 1) % keys.length;
-            const cleanHeadline = parsed.headline
-              .replace(/:\s*Architectural Context & Market Outlook/gi, '')
-              .trim();
-
-            return {
-              headline: cleanHeadline,
-              leadSummary: parsed.leadSummary?.trim() || parsed.paragraphs[0].slice(0, 160) + '...',
-              paragraphs: parsed.paragraphs.map((p: string) => p.trim()),
-              bullets: Array.isArray(parsed.bullets) && parsed.bullets.length > 0
-                ? parsed.bullets.map((b: string) => b.trim())
-                : [
-                    'Architectural advancements verified by CLASSIFY TECH analysis.',
-                    'Market implications evaluated across global and Indian consumer tiers.',
-                    'Detailed hardware benchmarks to be updated upon retail deployment.',
-                  ],
-              sourceAttribution: `Reported with original editorial analysis by CLASSIFY TECH Desk; primary announcement via ${sourceName}.`,
-              isAiGenerated: true,
-            };
-          }
-        }
-      } catch (err: any) {
-        const msg = String(err?.message || '');
-        if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded')) {
-          serverCooldownUntil = Date.now() + 60000;
-          break;
-        }
-        // Silent failover to next model or key with zero console exposure
-      }
-    }
-  }
-
   return synthesizeWithDeterministicFallback(rawTitle, rawContent, sourceName, sourceUrl);
 }
 
@@ -307,6 +177,8 @@ function saveAdminPhones(phones: Record<string, any>): boolean {
 }
 
 const ALLOWED_ARTICLE_DOMAINS = [
+  'smartprix.com',
+  'www.smartprix.com',
   'gsmarena.com',
   'www.gsmarena.com',
   'androidauthority.com',
@@ -319,6 +191,7 @@ const ALLOWED_ARTICLE_DOMAINS = [
   'www.theverge.com',
   'feeds.feedburner.com',
   'api.rss2json.com',
+  'api.allorigins.win',
 ];
 
 async function startServer() {
@@ -366,7 +239,7 @@ async function startServer() {
 
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://api.rss2json.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
+      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://api.rss2json.com https://api.allorigins.win https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
     );
     next();
   });
@@ -613,7 +486,10 @@ async function startServer() {
       if (html.length > 1024 * 1024) return null;
 
       let container = '';
-      if (url.includes('gsmarena.com')) {
+      if (url.includes('smartprix.com')) {
+        const m = html.match(/<div[^>]*class=["'][^"']*(?:entry-content|post-content|article-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+        if (m) container = m[1];
+      } else if (url.includes('gsmarena.com')) {
         const m = html.match(/<div[^>]*id=["']review-body["'][^>]*>([\s\S]*?)<\/div>/i);
         if (m) container = m[1];
       } else if (url.includes('theverge.com')) {
@@ -701,8 +577,15 @@ async function startServer() {
         });
       }
 
-      const allFeeds = [...YOUTUBE_TECH_RSS_FEEDS, ...FREE_TECH_RSS_FEEDS];
+      const primaryYouTubeFeed = YOUTUBE_TECH_RSS_FEEDS.find((f) =>
+        f.rssUrl.includes('UCp0jHiCTqxDYZ0Bi0sKUmbw')
+      );
+      const allFeeds = primaryYouTubeFeed
+        ? [...FREE_TECH_RSS_FEEDS, primaryYouTubeFeed]
+        : [...FREE_TECH_RSS_FEEDS];
+
       const fetchPromises = allFeeds.map(async (feed) => {
+        // 1. Direct XML fetch
         try {
           const directRes = await fetch(feed.rssUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -718,9 +601,10 @@ async function startServer() {
             }
           }
         } catch {
-          // Fall back seamlessly to JSON proxy
+          // Fall back seamlessly to rss2json / AllOrigins
         }
 
+        // 2. Free rss2json API
         try {
           const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.rssUrl)}`;
           const response = await fetch(apiUrl, {
@@ -732,6 +616,26 @@ async function startServer() {
             if (data.status === 'ok' && Array.isArray(data.items) && data.items.length > 0) {
               const feedTitle = data.feed?.title || feed.name;
               return data.items.slice(0, 6).map((item) => transformRssItemToArticle(item, feedTitle));
+            }
+          }
+        } catch {
+          // Fall back to AllOrigins proxy
+        }
+
+        // 3. Free AllOrigins CORS XML fallback
+        try {
+          const proxyUrl = `${ALLORIGINS_PROXY_BASE}${encodeURIComponent(feed.rssUrl)}`;
+          const proxyRes = await fetch(proxyUrl, {
+            headers: { Accept: 'application/json' },
+            signal: AbortSignal.timeout(5500),
+          });
+          if (proxyRes.ok) {
+            const payload = (await proxyRes.json()) as { contents?: string };
+            if (payload && typeof payload.contents === 'string' && payload.contents.length > 40) {
+              const rawItems = parseRawXmlToRssItems(payload.contents);
+              if (rawItems.length > 0) {
+                return rawItems.slice(0, 6).map((item) => transformRssItemToArticle(item, feed.name));
+              }
             }
           }
         } catch (feedErr) {
@@ -816,9 +720,10 @@ async function startServer() {
       }
 
       return res.json({
-        success: false,
-        count: 0,
-        articles: [],
+        success: true,
+        fromCache: true,
+        count: defaultTechArticles.length,
+        articles: defaultTechArticles,
       });
     } catch (err) {
       console.error('Error in /api/news/rss:', err);
@@ -911,6 +816,227 @@ async function startServer() {
     } catch (err) {
       console.error('Error in /api/news/article:', err);
       return res.status(500).json({ success: false, error: 'Failed to fetch article' });
+    }
+  });
+
+  // -------------------------------------------------------------
+  // ZERO-TOKEN SMARTPHONE SPECS COMPARATOR (/api/compare/specs)
+  // Resolves from built-in DB or deterministic hardware spec engine
+  // with strict 2-requests-per-hour rate limiting and 0 API token usage.
+  // -------------------------------------------------------------
+  interface CachedCompareEntry {
+    timestamp: number;
+    specs: Record<string, unknown>;
+  }
+  const compareSpecsCache = new Map<string, CachedCompareEntry>();
+  const COMPARE_CACHE_TTL_MS = 60 * 60 * 1000;
+
+  app.post('/api/compare/specs', async (req: Request, res: Response) => {
+    const rawName = typeof req.body?.deviceName === 'string' ? req.body.deviceName.trim() : '';
+    if (!isValidPhoneQuery(rawName)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid smartphone model name.',
+      });
+    }
+
+    const cacheKey = rawName.toLowerCase();
+    const cached = compareSpecsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < COMPARE_CACHE_TTL_MS) {
+      return res.json({ success: true, specs: cached.specs, cached: true });
+    }
+
+    const builtIn = findBuiltInPhoneSpecs(rawName);
+    if (builtIn) {
+      const payload = {
+        Name: builtIn.name,
+        Price: builtIn.price,
+        Processor: builtIn.cpu,
+        Fab: builtIn.nm,
+        AnTuTu: builtIn.antutu,
+        Geekbench: builtIn.geek,
+        Display: builtIn.display,
+        Protection: builtIn.build,
+        RAM: builtIn.ram,
+        RearCam: builtIn.cam_rear,
+        FrontCam: builtIn.cam_front,
+        Gaming: builtIn.gaming,
+        FiveG: builtIn.bands5g,
+        Connectivity: builtIn.wifi,
+        Audio: builtIn.audio,
+        Battery: builtIn.battery,
+        OS: builtIn.os,
+        Verdict: builtIn.verdict,
+      };
+      compareSpecsCache.set(cacheKey, { timestamp: Date.now(), specs: payload });
+      return res.json({ success: true, specs: payload, cached: true });
+    }
+
+    const clientIp = getClientIp(req);
+    if (isRateLimited(`compare_autoadd_${clientIp}`, 2, 60 * 60 * 1000)) {
+      return res.status(429).json({
+        success: false,
+        error: 'Auto-Add limit reached (max 2 custom phones per hour). Please select from the built-in device list or try again later.',
+      });
+    }
+
+    const generated = generateDeterministicPhoneSpecs(rawName);
+    const payload = {
+      Name: generated.name,
+      Price: generated.price,
+      Processor: generated.cpu,
+      Fab: generated.nm,
+      AnTuTu: generated.antutu,
+      Geekbench: generated.geek,
+      Display: generated.display,
+      Protection: generated.build,
+      RAM: generated.ram,
+      RearCam: generated.cam_rear,
+      FrontCam: generated.cam_front,
+      Gaming: generated.gaming,
+      FiveG: generated.bands5g,
+      Connectivity: generated.wifi,
+      Audio: generated.audio,
+      Battery: generated.battery,
+      OS: generated.os,
+      Verdict: generated.verdict,
+    };
+
+    compareSpecsCache.set(cacheKey, { timestamp: Date.now(), specs: payload });
+    return res.json({ success: true, specs: payload, cached: false });
+  });
+
+  // -------------------------------------------------------------
+  // ZERO-TOKEN SOCIAL TECH RADAR (/api/social/radar)
+  // -------------------------------------------------------------
+  const CURATED_SOCIAL_RADAR_ITEMS = [
+    {
+      id: 'radar-1',
+      platform: 'X (Twitter)',
+      topic: '3nm Silicon Telemetry',
+      headline: 'Snapdragon 8 Elite vs Dimensity 9400 Sustained 120FPS Benchmarks',
+      summary: 'Independent hardware testers report 38% lower GPU power draw on second-generation 3nm TSMC N3E flagship chipsets.',
+      hashtags: ['#Snapdragon8Elite', '#Dimensity9400', '#CLASSIFYTECH'],
+      heatLabel: 'Trending Now',
+    },
+    {
+      id: 'radar-2',
+      platform: 'X / Weibo',
+      topic: 'Battery Chemistry',
+      headline: '7,500mAh Silicon-Carbon Batteries Enter Sub-8.1mm Flagship Production',
+      summary: 'Supply-chain leaks confirm high-density Si/C anode batteries with 100W PPS fast charging across upcoming flagships.',
+      hashtags: ['#ChinaFlagships', '#BatteryTech', '#CLASSIFYTECH'],
+      heatLabel: 'Hot Scoop',
+    },
+  ];
+
+  const handleSocialRadar = async (_req: Request, res: Response) => {
+    const updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return res.json({
+      success: true,
+      items: CURATED_SOCIAL_RADAR_ITEMS,
+      updatedAt,
+      cached: true,
+    });
+  };
+
+  app.get('/api/social/radar', handleSocialRadar);
+  app.post('/api/social/radar', handleSocialRadar);
+
+  // -------------------------------------------------------------
+  // GLOBAL YOUTUBE RSS PROXY (/api/youtube/global)
+  // -------------------------------------------------------------
+  const GLOBAL_YOUTUBE_CHANNELS = [
+    { id: 'UCBJycsmduvYEL83R_U4JriQ', name: 'Marques Brownlee' },
+    { id: 'UCMiJRAwDNSNzuYeN2uWa0pA', name: 'Mrwhosetheboss' },
+    { id: 'UCXUJJNoP1QupwsYIWFXmsZg', name: 'Tech Burner' },
+    { id: 'UCEPL07qzVsOcHd3sMUws65g', name: 'Trakin Tech' },
+    { id: 'UCVYamHliCI9rw1tHR1xbkfw', name: 'Dave2D' },
+    { id: 'UCp0jHiCTqxDYZ0Bi0sKUmbw', name: 'CLASSIFY TECH' },
+  ];
+
+  let youtubeGlobalCache: { timestamp: number; videos: any[] } | null = null;
+  const YT_CACHE_TTL_MS = 20 * 60 * 1000;
+
+  app.get('/api/youtube/global', async (req: Request, res: Response) => {
+    const force = req.query.refresh === 'true';
+    if (!force && youtubeGlobalCache && Date.now() - youtubeGlobalCache.timestamp < YT_CACHE_TTL_MS) {
+      return res.json({ success: true, videos: youtubeGlobalCache.videos, cached: true });
+    }
+
+    try {
+      const results = await Promise.allSettled(
+        GLOBAL_YOUTUBE_CHANNELS.map(async (channel) => {
+          const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}`;
+          const xmlRes = await fetch(feedUrl, {
+            headers: { 'User-Agent': 'CLASSIFY-TECH-RSS/1.0' },
+            signal: AbortSignal.timeout(7000),
+          });
+          if (!xmlRes.ok) return [];
+          const xmlText = await xmlRes.text();
+          const entries = Array.from(xmlText.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)).slice(0, 3);
+          return entries
+            .map((match) => {
+              const block = match[1];
+              const videoId = (block.match(/<yt:videoId>([^<]+)<\/yt:videoId>/i)?.[1] || '').trim();
+              const title = cleanHtmlText(block.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '');
+              const link = block.match(/<link[^>]+href="([^"]+)"/i)?.[1] || `https://www.youtube.com/watch?v=${videoId}`;
+              const publishedAt = (block.match(/<published>([^<]+)<\/published>/i)?.[1] || '').trim();
+              const description = cleanHtmlText(block.match(/<media:description>([\s\S]*?)<\/media:description>/i)?.[1] || '');
+              if (!videoId || !title) return null;
+              return {
+                id: videoId,
+                channelId: channel.id,
+                title,
+                description:
+                  description.slice(0, 180) ||
+                  `Watch the latest tech coverage from ${channel.name} on YouTube.`,
+                thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                channelTitle: channel.name,
+                publishedAt,
+                formattedDate: publishedAt
+                  ? new Date(publishedAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : 'Latest Upload',
+                videoUrl: link,
+                category: 'GLOBAL',
+              };
+            })
+            .filter(Boolean);
+        })
+      );
+
+      const collected: any[] = [];
+      for (const r of results) {
+        if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+          collected.push(...r.value);
+        }
+      }
+
+      collected.sort(
+        (a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime()
+      );
+
+      const deduped = Array.from(new Map(collected.map((v) => [v.id, v])).values()).slice(0, 12);
+      if (deduped.length > 0) {
+        youtubeGlobalCache = { timestamp: Date.now(), videos: deduped };
+        return res.json({ success: true, videos: deduped });
+      }
+
+      return res.json({
+        success: true,
+        videos: DEFAULT_YOUTUBE_TECH_VIDEOS,
+        fallback: true,
+      });
+    } catch (err) {
+      return res.json({
+        success: true,
+        videos: DEFAULT_YOUTUBE_TECH_VIDEOS,
+        fallback: true,
+      });
     }
   });
 

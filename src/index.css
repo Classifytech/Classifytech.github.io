@@ -3,143 +3,83 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  html.dark body,
   body {
     background-color: #06080f;
-    background-image: 
-      radial-gradient(circle at 12% 15%, rgba(0, 242, 254, 0.08) 0%, transparent 40%),
-      radial-gradient(circle at 88% 22%, rgba(138, 43, 226, 0.1) 0%, transparent 45%),
-      radial-gradient(circle at 50% 80%, rgba(0, 230, 118, 0.05) 0%, transparent 50%);
-    color: #f1f5f9;
-    font-family: 'Plus Jakarta Sans', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-image:
+      radial-gradient(circle at 12% 15%, rgba(0, 242, 254, 0.06) 0%, transparent 40%),
+      radial-gradient(circle at 88% 22%, rgba(138, 43, 226, 0.07) 0%, transparent 45%);
+    color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     min-height: 100vh;
   }
-}
 
-/* BULLETPROOF DARK MODE OVERRIDES (html.dark) */
-html.dark body {
-  background-color: #06080f !important;
-  color: #f8fafc !important;
-}
-
-html.dark .glass-card {
-  background: rgba(13, 19, 34, 0.92) !important;
-  border-color: rgba(0, 242, 254, 0.2) !important;
-  color: #f8fafc !important;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7) !important;
-}
-
-html.dark header.glass-card {
-  background: rgba(6, 10, 20, 0.95) !important;
-  border-bottom-color: rgba(0, 242, 254, 0.25) !important;
-  color: #ffffff !important;
-}
-
-html.dark footer {
-  background-color: #04060b !important;
-  border-top-color: rgba(255, 255, 255, 0.1) !important;
-  color: #94a3b8 !important;
-}
-
-/* Ensure bright, pure white headings and readable text in Dark Mode */
-html.dark h1,
-html.dark h2,
-html.dark h3,
-html.dark h4,
-html.dark h5,
-html.dark h6 {
-  color: #ffffff !important;
-}
-
-html.dark .text-white {
-  color: #ffffff !important;
-}
-
-html.dark .text-slate-100,
-html.dark .text-slate-200 {
-  color: #f1f5f9 !important;
-}
-
-html.dark .text-slate-300,
-html.dark .text-slate-400,
-html.dark article p {
-  color: #cbd5e1 !important;
-}
-
-/* Ticker Bar in Dark Mode */
-html.dark .ticker-bar {
-  background-color: #070b14 !important;
-  border-bottom-color: rgba(0, 242, 254, 0.25) !important;
-}
-
-html.dark .ticker-track {
-  color: #f1f5f9 !important;
-}
-
-/* CompareSection, LinkMakerSection, FavoritesSection in Dark Mode */
-html.dark .spec-cell,
-html.dark .compare-spec-box {
-  background-color: rgba(10, 15, 29, 0.9) !important;
-  border-color: rgba(0, 242, 254, 0.15) !important;
-  color: #f1f5f9 !important;
-}
-
-html.dark .link-maker-card {
-  background: linear-gradient(180deg, rgba(10, 15, 29, 0.98) 0%, rgba(4, 8, 20, 0.98) 100%) !important;
-  border-color: rgba(0, 242, 254, 0.3) !important;
-}
-
-html.dark .store-pills-bar {
-  background-color: rgba(6, 10, 20, 0.75) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-html.dark .disclosure-card {
-  background-color: rgba(10, 15, 29, 0.8) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-html.dark select,
-html.dark input:not([type="checkbox"]):not([type="radio"]),
-html.dark textarea {
-  background-color: #04060b !important;
-  color: #ffffff !important;
-  border-color: rgba(0, 242, 254, 0.3) !important;
+  html.light body {
+    background-color: #f8fafc;
+    background-image:
+      radial-gradient(circle at 12% 15%, rgba(2, 132, 199, 0.06) 0%, transparent 40%),
+      radial-gradient(circle at 88% 22%, rgba(124, 58, 237, 0.05) 0%, transparent 45%);
+    color: #0f172a;
+  }
 }
 
 .font-mono {
   font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
+/* Structural Card Surfaces — Clean Dual-Theme Contrast */
 .glass-card {
-  background: rgba(13, 18, 32, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 242, 254, 0.16);
+  background-color: rgba(255, 255, 255, 0.98);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.06);
+}
+
+html.dark .glass-card {
+  background-color: rgba(13, 18, 32, 0.94);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.65);
 }
 
 .glass-card-hover {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-card-hover:hover {
-  border-color: rgba(0, 242, 254, 0.45);
-  box-shadow: 0 10px 30px -10px rgba(0, 242, 254, 0.2);
   transform: translateY(-2px);
 }
 
+html.light .glass-card-hover:hover {
+  border-color: #0284c7;
+  box-shadow: 0 12px 28px -8px rgba(2, 132, 199, 0.16);
+}
+
+html.dark .glass-card-hover:hover {
+  border-color: rgba(0, 242, 254, 0.45);
+  box-shadow: 0 12px 28px -8px rgba(0, 242, 254, 0.18);
+}
+
 .grad-btn {
-  background: linear-gradient(135deg, #00f2fe 0%, #8a2be2 100%);
-  color: #04060c !important;
+  background: linear-gradient(135deg, #00f2fe 0%, #38bdf8 50%, #818cf8 100%);
+  color: #04060c;
   font-weight: 800;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .grad-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 25px rgba(0, 242, 254, 0.35);
+  box-shadow: 0 8px 22px rgba(0, 242, 254, 0.3);
 }
 
 .grad-text {
+  background: linear-gradient(90deg, #0284c7, #7c3aed, #db2777);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+html.dark .grad-text {
   background: linear-gradient(90deg, #00f2fe, #c084fc, #ff2a85);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -173,7 +113,7 @@ html.dark textarea {
 .spec-divider::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid rgba(0, 242, 254, 0.2);
+  border-bottom: 1px solid rgba(14, 165, 233, 0.22);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -184,269 +124,84 @@ html.dark textarea {
   scrollbar-width: none;
 }
 
-/* HIGH-CONTRAST LIGHT MODE RULES */
-html.light body {
-  background-color: #f8fafc;
-  background-image: 
-    radial-gradient(circle at 12% 15%, rgba(0, 180, 216, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 88% 22%, rgba(124, 58, 237, 0.1) 0%, transparent 45%),
-    radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
-  color: #0f172a;
-}
-
-html.light .glass-card {
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(14, 165, 233, 0.28);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
-}
-
-html.light header.glass-card {
-  background: rgba(255, 255, 255, 0.98) !important;
-  border-bottom-color: rgba(14, 165, 233, 0.3) !important;
-}
-
-html.light footer {
-  background-color: #f1f5f9 !important;
-  border-top-color: #cbd5e1 !important;
-  color: #334155 !important;
-}
-
-html.light h1,
-html.light h2,
-html.light h3,
-html.light h4,
-html.light h5,
-html.light h6 {
-  color: #0f172a !important;
-}
-
-/* Light mode text overrides for primary text */
-html.light .text-white {
-  color: #0f172a;
-}
-
-html.light .text-slate-100,
-html.light .text-slate-200,
-html.light .text-slate-300 {
-  color: #1e293b !important;
-}
-
-html.light .text-slate-400 {
-  color: #475569 !important;
-}
-
-html.light .text-slate-500 {
-  color: #64748b !important;
-}
-
-html.light .border-white\/10,
-html.light .border-white\/15,
-html.light .border-white\/20,
-html.light .border-white\/5 {
-  border-color: rgba(14, 165, 233, 0.25) !important;
-}
-
-html.light .bg-white\/5,
-html.light .bg-white\/10,
-html.light .bg-white\/15 {
-  background-color: rgba(241, 245, 249, 0.95) !important;
-}
-
-html.light input:not([type="checkbox"]):not([type="radio"]),
-html.light select,
-html.light textarea {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-}
-
-html.light input::placeholder,
-html.light textarea::placeholder {
-  color: #94a3b8 !important;
-}
-
-/* Loot cards, Ticker bar & dark containers in Light Mode */
-html.light .bg-\[\#090d18\],
-html.light .bg-\[\#04060b\],
-html.light .bg-\[\#06080f\] {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: rgba(14, 165, 233, 0.25) !important;
-}
-
-/* Modals and overlays in Light Mode */
-html.light .bg-slate-950\/95,
-html.light .bg-slate-950\/98,
-html.light .bg-slate-950,
-html.light .bg-slate-900\/90,
-html.light .bg-slate-900 {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-  color: #0f172a !important;
-}
-
-/* Keep gradient text & gradient buttons vibrant */
-html.light .grad-text {
-  background: linear-gradient(90deg, #0284c7, #9333ea, #db2777) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-}
-
-/* 3D YOUTUBE TACTILE PILL TOGGLE STYLES */
+/* Interactive Segmented Filter Controls (Light & Dark Safe) */
 .pill-3d {
-  position: relative;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 
-    0 4px 6px -1px rgba(0, 0, 0, 0.3),
-    0 2px 4px -2px rgba(0, 0, 0, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.3);
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translateY(0);
+  background-color: #f1f5f9;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .pill-3d:hover {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 
-    0 8px 15px -3px rgba(0, 0, 0, 0.35),
-    0 4px 6px -4px rgba(0, 0, 0, 0.3),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.45);
+  background-color: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
 }
 
-.pill-3d:active {
-  transform: translateY(1px);
-  box-shadow: 
-    0 1px 2px 0 rgba(0, 0, 0, 0.4),
-    inset 0 2px 4px rgba(0, 0, 0, 0.25);
+html.dark .pill-3d {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+html.dark .pill-3d:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(0, 242, 254, 0.4);
 }
 
 .pill-3d-active {
-  background: linear-gradient(135deg, #00f2fe 0%, #00c6ff 50%, #0072ff 100%);
-  color: #040814 !important;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 
-    0 4px 14px rgba(0, 242, 254, 0.45),
-    0 2px 4px rgba(0, 0, 0, 0.2),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.75);
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid #0284c7;
   font-weight: 800;
-  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
 }
 
-.pill-3d-active:hover {
-  box-shadow: 
-    0 8px 20px rgba(0, 242, 254, 0.6),
-    inset 0 1px 2px rgba(255, 255, 255, 0.9);
-  transform: translateY(-2px);
+html.dark .pill-3d-active {
+  background: linear-gradient(135deg, #00f2fe 0%, #00c6ff 60%, #38bdf8 100%);
+  color: #040814;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 4px 14px rgba(0, 242, 254, 0.35);
 }
 
-.pill-3d-active:active {
-  transform: translateY(1px);
-  box-shadow: 
-    0 2px 6px rgba(0, 242, 254, 0.3),
-    inset 0 2px 4px rgba(0, 0, 0, 0.2);
+/* Blur-Up Lazy Image Placeholder & Transition */
+.blur-up-shell {
+  background-color: #0f172a;
 }
 
-/* 3D PINK ACTIVE VARIANT */
-.pill-3d-active-pink {
-  background: linear-gradient(135deg, #ff2a85 0%, #ff5252 50%, #8a2be2 100%);
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 
-    0 4px 14px rgba(255, 42, 133, 0.45),
-    0 2px 4px rgba(0, 0, 0, 0.2),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.75);
-  font-weight: 800;
-  transform: translateY(-1px);
+.blur-up-img {
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, filter, transform;
 }
 
-.pill-3d-active-pink:hover {
-  box-shadow: 
-    0 8px 20px rgba(255, 42, 133, 0.6),
-    inset 0 1px 2px rgba(255, 255, 255, 0.9);
-  transform: translateY(-2px);
+@keyframes blurUpShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
-/* iPHONE iOS LIQUID GLASS / WATER-DROP MORPHISM */
-.liquid-glass {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 
-    0 20px 40px -15px rgba(0, 0, 0, 0.5),
-    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+.blur-up-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    transparent 100%
+  );
+  animation: blurUpShimmer 1.6s ease-in-out infinite;
 }
 
-html.light .liquid-glass {
-  background: rgba(255, 255, 255, 0.82) !important;
-  backdrop-filter: blur(24px) saturate(190%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
-  border: 1px solid rgba(14, 165, 233, 0.35) !important;
-  box-shadow: 
-    0 20px 40px -15px rgba(14, 165, 233, 0.16),
-    inset 0 2px 4px rgba(255, 255, 255, 0.95),
-    inset 0 -2px 4px rgba(0, 180, 255, 0.12) !important;
-}
-
-html.light .pill-3d {
-  background: rgba(255, 255, 255, 0.88) !important;
-  color: #0f172a !important;
-  border-color: rgba(14, 165, 233, 0.3) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 
-    0 4px 10px rgba(15, 23, 42, 0.06),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
-    inset 0 -1.5px 2px rgba(14, 165, 233, 0.1) !important;
-}
-
-html.light .pill-3d:hover {
-  background: #ffffff !important;
-  color: #0284c7 !important;
-  border-color: rgba(14, 165, 233, 0.6) !important;
-  box-shadow: 
-    0 8px 16px rgba(14, 165, 233, 0.18),
-    inset 0 2px 3px rgba(255, 255, 255, 1) !important;
-  transform: translateY(-2px);
-}
-
-html.light .pill-3d-active {
-  background: linear-gradient(135deg, #0284c7 0%, #00b4d8 50%, #0077b6 100%) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 
-    0 6px 18px rgba(2, 132, 199, 0.35),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.8) !important;
-}
-
-html.light .pill-3d-active-pink {
-  background: linear-gradient(135deg, #e11d48 0%, #db2777 50%, #9333ea 100%) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 
-    0 6px 18px rgba(225, 29, 72, 0.35),
-    inset 0 1.5px 2px rgba(255, 255, 255, 0.8) !important;
-}
-
-/* Light mode overrides for all dark containers and cards */
-html.light .bg-black\/55,
-html.light .bg-black\/60,
-html.light .bg-black\/70,
-html.light .bg-black\/80,
-html.light .bg-black\/90,
-html.light .bg-black\/95 {
-  background-color: rgba(248, 250, 252, 0.95) !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-}
-
-html.light .bg-cyan-950\/40,
-html.light .bg-cyan-950\/20,
-html.light .bg-cyan-950\/60 {
-  background-color: rgba(224, 242, 254, 0.6) !important;
-  border-color: rgba(14, 165, 233, 0.35) !important;
-  color: #0369a1 !important;
+@media (prefers-reduced-motion: reduce) {
+  .blur-up-img {
+    transition: opacity 0.15s ease-out;
+  }
+  .blur-up-shimmer {
+    animation: none;
+  }
+  .ticker-track {
+    animation: none;
+  }
 }

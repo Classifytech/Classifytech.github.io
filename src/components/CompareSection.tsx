@@ -1,290 +1,107 @@
-import React, { useState, useMemo } from 'react';
-import { PhoneSpecs } from '../data/phonesData.ts';
-
-const calculatePercent = (val: number, max: number): number =>
-  max > 0 ? Math.min(100, Math.round((val / max) * 100)) : 0;
+import React from 'react';
+import {
+  COMPARISON_CATEGORIES,
+  TOTAL_DEEP_SPEC_ROWS_COUNT,
+  type ComparisonCategoryId,
+} from '../utils/multiCategoryComparison.ts';
 import {
   Scale,
-  Sparkles,
+  ArrowRight,
   Smartphone,
-  IndianRupee,
-  Cpu,
-  Atom,
-  Flame,
+  Laptop,
+  Tablet,
+  Watch,
+  Headphones,
   Tv,
-  Shield,
-  Layers,
-  Camera,
-  Video,
-  Gamepad2,
-  Radio,
-  Wifi,
-  BatteryCharging,
-  Layers3,
-  Award
+  Cpu,
+  Zap,
 } from 'lucide-react';
 
 interface CompareSectionProps {
-  phones: Record<string, PhoneSpecs>;
+  onLaunchComparison: (category?: ComparisonCategoryId) => void;
 }
 
-export const CompareSection: React.FC<CompareSectionProps> = ({ phones }) => {
-  const phoneKeys = useMemo(() => Object.keys(phones), [phones]);
-  const [phone1Key, setPhone1Key] = useState<string>(() => phoneKeys[0] || 'iphone-16-pro-max');
-  const [phone2Key, setPhone2Key] = useState<string>(() => phoneKeys[3] || 'samsung-s25-ultra');
+const getPillIcon = (id: ComparisonCategoryId) => {
+  switch (id) {
+    case 'smartphones':
+      return <Smartphone className="w-3.5 h-3.5 text-cyan-600 dark:text-[#00f2fe]" />;
+    case 'laptops':
+      return <Laptop className="w-3.5 h-3.5 text-purple-600 dark:text-[#c084fc]" />;
+    case 'tablets':
+      return <Tablet className="w-3.5 h-3.5 text-emerald-600 dark:text-[#00e676]" />;
+    case 'smartwatches':
+      return <Watch className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
+    case 'earbuds':
+      return <Headphones className="w-3.5 h-3.5 text-pink-600 dark:text-[#ff2a85]" />;
+    case 'tvs':
+      return <Tv className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />;
+    case 'chipsets':
+      return <Cpu className="w-3.5 h-3.5 text-cyan-600 dark:text-[#00f2fe]" />;
+  }
+};
 
-  const p1 = phones[phone1Key] || phones[phoneKeys[0]] || Object.values(phones)[0];
-  const p2 = phones[phone2Key] || phones[phoneKeys[1]] || Object.values(phones)[1] || p1;
-
-  const maxAntutu = Math.max(p1?.antutu || 0, p2?.antutu || 0, 1850000);
-  const pct1 = calculatePercent(p1?.antutu || 0, maxAntutu);
-  const pct2 = calculatePercent(p2?.antutu || 0, maxAntutu);
-
-  // Group 100+ devices by brand for fast, organized selection
-  const brandGroups = useMemo(() => {
-    const groups: { label: string; keys: string[] }[] = [
-      { label: '🍎 Apple iPhone', keys: [] },
-      { label: '📱 Samsung Galaxy', keys: [] },
-      { label: '⚡ OnePlus', keys: [] },
-      { label: '🏁 iQOO Performance', keys: [] },
-      { label: '📸 Vivo Zeiss Series', keys: [] },
-      { label: '🏎️ Realme Speed Series', keys: [] },
-      { label: '💎 Xiaomi, Redmi & POCO', keys: [] },
-      { label: '🤖 Google Pixel AI', keys: [] },
-      { label: '🛡️ Motorola Edge & G-Series', keys: [] },
-      { label: '🎮 Asus ROG & Esports', keys: [] },
-      { label: '✨ Nothing, CMF & Others', keys: [] },
-    ];
-
-    for (const key of phoneKeys) {
-      const p = phones[key];
-      if (!p) continue;
-      const n = p.name.toLowerCase();
-      if (n.includes('apple') || n.includes('iphone')) groups[0].keys.push(key);
-      else if (n.includes('samsung') || n.includes('galaxy')) groups[1].keys.push(key);
-      else if (n.includes('oneplus') || n.includes('nord')) groups[2].keys.push(key);
-      else if (n.includes('iqoo')) groups[3].keys.push(key);
-      else if (n.includes('vivo')) groups[4].keys.push(key);
-      else if (n.includes('realme') || n.includes('narzo')) groups[5].keys.push(key);
-      else if (n.includes('xiaomi') || n.includes('redmi') || n.includes('poco')) groups[6].keys.push(key);
-      else if (n.includes('pixel') || n.includes('google')) groups[7].keys.push(key);
-      else if (n.includes('motorola') || n.includes('moto') || n.includes('razr')) groups[8].keys.push(key);
-      else if (n.includes('rog') || n.includes('asus') || n.includes('gt 20 pro')) groups[9].keys.push(key);
-      else groups[10].keys.push(key);
-    }
-
-    return groups.filter((g) => g.keys.length > 0);
-  }, [phoneKeys, phones]);
-
-  const specRows = useMemo(() => [
-    {
-      icon: <IndianRupee className="w-4 h-4 text-[#00e676]" />,
-      title: '1. RETAIL PRICE & STORAGE',
-      v1: <span className="text-sm sm:text-base font-black text-[#00e676]">{p1.price}</span>,
-      v2: <span className="text-sm sm:text-base font-black text-[#00e676]">{p2.price}</span>,
-    },
-    {
-      icon: <Cpu className="w-4 h-4 text-[#00f2fe]" />,
-      title: '2. PROCESSOR & ARCHITECTURE',
-      v1: <div className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm">{p1.cpu}</div>,
-      v2: <div className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm">{p2.cpu}</div>,
-    },
-    {
-      icon: <Atom className="w-4 h-4 text-[#c084fc]" />,
-      title: '3. FABRICATION NODE & GPU',
-      v1: <span className="px-2.5 py-1 rounded-lg bg-cyan-500/15 text-[#00f2fe] text-xs font-bold">{p1.nm}</span>,
-      v2: <span className="px-2.5 py-1 rounded-lg bg-purple-500/15 text-purple-300 text-xs font-bold">{p2.nm}</span>,
-    },
-    {
-      icon: <Flame className="w-4 h-4 text-amber-400" />,
-      title: '4. ANTUTU V10 & GEEKBENCH 6',
-      v1: (
-        <div className="space-y-1">
-          <div className="font-black text-[#00f2fe] text-sm sm:text-base">{p1.antutu.toLocaleString('en-IN')} Pts</div>
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-[#00f2fe] rounded-full transition-all duration-500" style={{ width: `${pct1}%` }} />
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono">Geekbench 6: {p1.geek}</div>
-        </div>
-      ),
-      v2: (
-        <div className="space-y-1">
-          <div className="font-black text-[#c084fc] text-sm sm:text-base">{p2.antutu.toLocaleString('en-IN')} Pts</div>
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-[#c084fc] rounded-full transition-all duration-500" style={{ width: `${pct2}%` }} />
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono">Geekbench 6: {p2.geek}</div>
-        </div>
-      ),
-    },
-    {
-      icon: <Tv className="w-4 h-4 text-[#00f2fe]" />,
-      title: '5. DISPLAY, REFRESH & NITS',
-      v1: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p1.display}</div>,
-      v2: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p2.display}</div>,
-    },
-    {
-      icon: <Shield className="w-4 h-4 text-[#00e676]" />,
-      title: '6. PROTECTION & IP WATERPROOFING',
-      v1: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p1.build}</div>,
-      v2: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p2.build}</div>,
-    },
-    {
-      icon: <Layers className="w-4 h-4 text-amber-300" />,
-      title: '7. RAM & ROM GENERATION (SPEED)',
-      v1: <div className="text-xs sm:text-sm text-amber-300 font-bold">{p1.ram}</div>,
-      v2: <div className="text-xs sm:text-sm text-amber-300 font-bold">{p2.ram}</div>,
-    },
-    {
-      icon: <Camera className="w-4 h-4 text-[#ff2a85]" />,
-      title: '8. REAR CAMERA SENSOR & OIS',
-      v1: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p1.cam_rear}</div>,
-      v2: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p2.cam_rear}</div>,
-    },
-    {
-      icon: <Video className="w-4 h-4 text-purple-400" />,
-      title: '9. FRONT SELFIE CAMERA & VIDEO',
-      v1: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p1.cam_front}</div>,
-      v2: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p2.cam_front}</div>,
-    },
-    {
-      icon: <Gamepad2 className="w-4 h-4 text-[#00e676]" />,
-      title: '10. BGMI FPS & VAPOR CHAMBER COOLING',
-      v1: <div className="text-xs sm:text-sm font-bold text-[#00e676]">{p1.gaming}</div>,
-      v2: <div className="text-xs sm:text-sm font-bold text-[#00e676]">{p2.gaming}</div>,
-    },
-    {
-      icon: <Radio className="w-4 h-4 text-[#00f2fe]" />,
-      title: '11. 5G SA/NSA BANDS (INDIA & GLOBAL)',
-      v1: <div className="text-[11px] sm:text-xs text-slate-300">{p1.bands5g}</div>,
-      v2: <div className="text-[11px] sm:text-xs text-slate-300">{p2.bands5g}</div>,
-    },
-    {
-      icon: <Wifi className="w-4 h-4 text-cyan-300" />,
-      title: '12. WI-FI, BLUETOOTH & NFC',
-      v1: <div className="text-[11px] sm:text-xs text-slate-300">{p1.wifi}</div>,
-      v2: <div className="text-[11px] sm:text-xs text-slate-300">{p2.wifi}</div>,
-    },
-    {
-      icon: <Layers3 className="w-4 h-4 text-purple-300" />,
-      title: '13. AUDIO SPEAKERS & TUNING',
-      v1: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p1.audio}</div>,
-      v2: <div className="text-xs sm:text-sm text-slate-200 font-medium">{p2.audio}</div>,
-    },
-    {
-      icon: <BatteryCharging className="w-4 h-4 text-amber-400" />,
-      title: '14. BATTERY CAPACITY & CHARGER',
-      v1: <div className="text-xs sm:text-sm font-bold text-amber-300">{p1.battery}</div>,
-      v2: <div className="text-xs sm:text-sm font-bold text-amber-300">{p2.battery}</div>,
-    },
-    {
-      icon: <Smartphone className="w-4 h-4 text-[#00f2fe]" />,
-      title: '15. OPERATING SYSTEM & UPDATES',
-      v1: <div className="text-xs sm:text-sm text-[#00f2fe] font-semibold">{p1.os}</div>,
-      v2: <div className="text-xs sm:text-sm text-[#c084fc] font-semibold">{p2.os}</div>,
-    },
-    {
-      icon: <Award className="w-4 h-4 text-amber-400" />,
-      title: '16. EXPERT VERDICT & BUY ADVICE',
-      v1: <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-400/30 text-[#00e676] font-bold text-xs leading-relaxed">{p1.verdict}</div>,
-      v2: <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-400/30 text-[#00f2fe] font-bold text-xs leading-relaxed">{p2.verdict}</div>,
-    },
-  ], [p1, p2, pct1, pct2]);
-
+export const CompareSection: React.FC<CompareSectionProps> = ({ onLaunchComparison }) => {
   return (
-    <section id="compareSection" className="space-y-4 sm:space-y-6 pt-2 w-full">
-      
-      {/* Header */}
-      <div className="text-center max-w-3xl mx-auto px-2 space-y-1">
-        <span className="text-xs font-black text-[#00f2fe] uppercase tracking-wider inline-flex items-center gap-1.5">
-          <Scale className="w-4 h-4 text-[#00f2fe]" /> 16-Point Hardware Specifications Matrix ({phoneKeys.length}+ Devices Database)
-        </span>
-        <h2 className="text-xl sm:text-3xl lg:text-4xl font-black text-slate-900 dark:text-white leading-tight">
-          Complete A-to-Z <span className="grad-text">Smartphone Comparator</span>
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm max-w-xl mx-auto">
-          Compare across {phoneKeys.length}+ of the latest flagship, mid-range, and budget smartphones with zero horizontal scrolling! Compare processors, real AnTuTu scores, camera sensors, and 5G bands seamlessly.
-        </p>
-      </div>
+    <section
+      id="compareSection"
+      className="relative w-full scroll-mt-20"
+    >
+      <div className="glass-card rounded-3xl p-5 sm:p-8 border border-slate-200 dark:border-cyan-500/35 shadow-xl bg-white dark:bg-[#0d1322] transition-all duration-300">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          {/* Left: Badge, Heading, Description & Category Pills */}
+          <div className="space-y-3.5 min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-black text-cyan-700 dark:text-[#00f2fe] uppercase tracking-wider inline-flex items-center gap-1.5">
+                <Scale className="w-4 h-4" />
+                <span>ALL-IN-ONE {TOTAL_DEEP_SPEC_ROWS_COUNT}-POINT HARDWARE MATRIX</span>
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-black text-emerald-700 dark:text-[#00e676] inline-flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Smartprix • GSMArena • NanoReview Engine
+              </span>
+            </div>
 
-      {/* Sticky Device Selector Bar */}
-      <div className="glass-card rounded-2xl p-3 sm:p-4 border border-cyan-500/30 shadow-xl sticky top-16 z-30 w-full bg-white/95 dark:bg-[#090d18]/95 backdrop-blur-md">
-        <div className="grid grid-cols-2 gap-2 sm:gap-4 items-center w-full">
-          
-          <div className="min-w-0">
-            <label htmlFor="selectPhone1" className="block text-[10px] sm:text-xs font-black text-[#00f2fe] uppercase mb-1 truncate flex items-center gap-1">
-              <Smartphone className="w-3.5 h-3.5" /> Device 1 (Left)
-            </label>
-            <select
-              id="selectPhone1"
-              value={phone1Key}
-              onChange={(e) => setPhone1Key(e.target.value)}
-              className="w-full bg-white dark:bg-black border border-[#00f2fe]/60 rounded-xl px-2.5 sm:px-3.5 py-2 text-xs sm:text-sm font-black text-slate-900 dark:text-white cursor-pointer outline-none truncate shadow-inner focus:ring-1 focus:ring-[#00f2fe]"
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-tight">
+              <span className="grad-text">Comparison</span>
+            </h2>
+
+            <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm max-w-2xl leading-relaxed font-medium">
+              Compare any gadget side-by-side across 50+ deep technical parameters including nm node, 0-100% charging time, benchmarks, and sensor details
+            </p>
+
+            {/* Category Quick-Launch Pills: Mobiles, Laptops, Tablets, Smartwatches, Earbuds, TVs, Chipsets */}
+            <div
+              id="comparisonLaunchPills"
+              className="flex flex-wrap items-center gap-2 pt-1"
             >
-              {brandGroups.map((group) => (
-                <optgroup key={group.label} label={group.label} className="bg-slate-100 dark:bg-slate-900 text-[#00f2fe] font-bold">
-                  {group.keys.map((k) => (
-                    <option key={k} value={k} className="bg-white dark:bg-black text-slate-900 dark:text-white font-medium">
-                      {phones[k].name} ({phones[k].price.split('(')[0].trim()})
-                    </option>
-                  ))}
-                </optgroup>
+              {COMPARISON_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => onLaunchComparison(cat.id)}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-cyan-500/15 dark:bg-white/[0.05] dark:hover:bg-cyan-500/20 border border-slate-200 dark:border-white/10 hover:border-cyan-500/40 text-xs font-extrabold text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  {getPillIcon(cat.id)}
+                  <span>{cat.shortPillLabel}</span>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <label htmlFor="selectPhone2" className="block text-[10px] sm:text-xs font-black text-[#c084fc] uppercase mb-1 truncate flex items-center gap-1">
-              <Smartphone className="w-3.5 h-3.5" /> Device 2 (Right)
-            </label>
-            <select
-              id="selectPhone2"
-              value={phone2Key}
-              onChange={(e) => setPhone2Key(e.target.value)}
-              className="w-full bg-white dark:bg-black border border-purple-400/60 rounded-xl px-2.5 sm:px-3.5 py-2 text-xs sm:text-sm font-black text-slate-900 dark:text-white cursor-pointer outline-none truncate shadow-inner focus:ring-1 focus:ring-purple-400"
+          {/* Right: Prominent "Compare Now ->" Action Button */}
+          <div className="shrink-0 flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-2.5">
+            <button
+              id="openComparisonPageBtn"
+              type="button"
+              onClick={() => onLaunchComparison('smartphones')}
+              className="px-6 sm:px-8 py-4 rounded-2xl bg-gradient-to-r from-[#00f2fe] via-[#4facfe] to-[#c084fc] hover:opacity-95 text-slate-950 font-black text-sm sm:text-base inline-flex items-center justify-center gap-2.5 shadow-lg shadow-cyan-500/25 transition-all cursor-pointer"
             >
-              {brandGroups.map((group) => (
-                <optgroup key={group.label} label={group.label} className="bg-slate-100 dark:bg-slate-900 text-purple-400 font-bold">
-                  {group.keys.map((k) => (
-                    <option key={k} value={k} className="bg-white dark:bg-black text-slate-900 dark:text-white font-medium">
-                      {phones[k].name} ({phones[k].price.split('(')[0].trim()})
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              <Scale className="w-4 h-4" />
+              <span>Compare Now &rarr;</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-
         </div>
       </div>
-
-      {/* Comparison Grid with Centered Spec Icons */}
-      <div className="glass-card rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-white/15 shadow-2xl space-y-4 sm:space-y-5 w-full">
-        {specRows.map((spec, i) => (
-          <div key={i} className="space-y-2 w-full min-w-0">
-            
-            {/* Center Spec Badge */}
-            <div className="spec-divider">
-              <div className="px-3 sm:px-4 py-1 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-cyan-500/30 flex items-center gap-2 text-[10px] sm:text-xs font-black tracking-wide text-slate-800 dark:text-slate-200 shadow-xs">
-                {spec.icon}
-                <span>{spec.title}</span>
-              </div>
-            </div>
-
-            {/* Spec Values Columns */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 text-center w-full">
-              <div className="spec-cell p-3 sm:p-4 rounded-2xl bg-slate-100 dark:bg-black/55 border border-slate-200 dark:border-white/10 text-xs sm:text-sm flex flex-col justify-center min-w-0 overflow-hidden break-words text-slate-800 dark:text-slate-200">
-                {spec.v1}
-              </div>
-              <div className="spec-cell p-3 sm:p-4 rounded-2xl bg-slate-100 dark:bg-black/55 border border-slate-200 dark:border-white/10 text-xs sm:text-sm flex flex-col justify-center min-w-0 overflow-hidden break-words text-slate-800 dark:text-slate-200">
-                {spec.v2}
-              </div>
-            </div>
-
-          </div>
-        ))}
-      </div>
-
     </section>
   );
 };

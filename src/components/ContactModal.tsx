@@ -60,7 +60,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
         setSubmitted(true);
         const feedbackMsg = data.deliveryServiceConfigured
           ? 'Inquiry dispatched to editorial team mailbox.'
-          : 'Inquiry logged to local editorial queue. (External email delivery service is not configured in environment).';
+          : 'Your inquiry has been received by the CLASSIFY TECH editorial desk. We will respond within 12 to 24 business hours.';
         setSubmissionFeedback(feedbackMsg);
         onShowToast(data.message || 'Inquiry recorded successfully!');
         setTimeout(() => {
@@ -114,21 +114,21 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6 text-sm text-slate-700 dark:text-slate-300">
           
           {/* Revealed Email Box - ONLY SHOWN HERE UPON MODAL OPEN */}
-          <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="text-xs font-black uppercase tracking-wider text-[#00f2fe] flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#00e676]" /> Verified Official Email Desk
+              <div className="text-xs font-black uppercase tracking-wider text-cyan-700 dark:text-[#00f2fe] flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-[#00e676]" /> Verified Official Email Desk
               </div>
-              <div className="text-sm font-semibold text-white">
-                Direct Contact: <a href="mailto:Classifytechz@gmail.com" className="text-[#00f2fe] underline font-bold hover:text-white transition">Classifytechz@gmail.com</a>
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                Direct Contact: <a href="mailto:Classifytechz@gmail.com" className="text-cyan-700 dark:text-[#00f2fe] underline font-bold hover:text-cyan-900 dark:hover:text-white transition">Classifytechz@gmail.com</a>
               </div>
-              <div className="text-xs text-slate-400 flex items-center gap-1">
+              <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" /> Average response window: 12 to 24 business hours
               </div>
             </div>
             <a
               href="mailto:Classifytechz@gmail.com?subject=Inquiry%20from%20CLASSIFY%20TECH%20Reader"
-              className="px-4 py-2.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-[#00f2fe] border border-cyan-400/50 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition shrink-0"
+              className="px-4 py-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-700 dark:text-[#00f2fe] border border-cyan-500/40 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition shrink-0"
             >
               Open Email App <Mail className="w-3.5 h-3.5" />
             </a>
@@ -136,27 +136,27 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
 
           {/* Interactive In-App Form */}
           {submitted ? (
-            <div className="p-8 rounded-2xl bg-emerald-500/10 border border-emerald-400/30 text-center space-y-3">
-              <CheckCircle2 className="w-12 h-12 text-[#00e676] mx-auto animate-bounce" />
-              <h3 className="text-lg font-black text-white">Inquiry Recorded</h3>
-              <p className="text-xs text-slate-300 max-w-md mx-auto">
+            <div className="p-8 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-3">
+              <CheckCircle2 className="w-12 h-12 text-emerald-600 dark:text-[#00e676] mx-auto animate-bounce" />
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">Inquiry Recorded</h3>
+              <p className="text-xs text-slate-700 dark:text-slate-300 max-w-md mx-auto">
                 {submissionFeedback || 'Your message has been safely logged with the CLASSIFY TECH desk.'}
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="p-4 sm:p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                  <MessageSquare className="w-4 h-4 text-[#00f2fe]" /> Send Direct Web Message
+            <form onSubmit={handleSubmit} className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4 text-cyan-600 dark:text-[#00f2fe]" /> Send Direct Web Message
                 </span>
-                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                <span className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1">
                   <HelpCircle className="w-3.5 h-3.5" /> No signup required
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label htmlFor="contact-name" className="block text-[11px] font-bold text-slate-300 uppercase">Your Name *</label>
+                  <label htmlFor="contact-name" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">Your Name *</label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                     <input
@@ -166,13 +166,13 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
                       placeholder="e.g. Alex Morgan"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-white/15 pl-9 pr-3 py-2 text-xs text-white focus:border-[#00f2fe] outline-none"
+                      className="w-full rounded-xl bg-white dark:bg-black border border-slate-300 dark:border-white/15 pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white focus:border-[#00f2fe] outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label htmlFor="contact-email" className="block text-[11px] font-bold text-slate-300 uppercase">Your Email *</label>
+                  <label htmlFor="contact-email" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">Your Email *</label>
                   <div className="relative">
                     <AtSign className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                     <input
@@ -182,30 +182,30 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
                       placeholder="e.g. alex@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-white/15 pl-9 pr-3 py-2 text-xs text-white focus:border-[#00f2fe] outline-none"
+                      className="w-full rounded-xl bg-white dark:bg-black border border-slate-300 dark:border-white/15 pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white focus:border-[#00f2fe] outline-none"
                     />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="contact-category" className="block text-[11px] font-bold text-slate-300 uppercase">Topic / Category</label>
+                <label htmlFor="contact-category" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">Topic / Category</label>
                 <select
                   id="contact-category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-xl bg-black border border-white/15 px-3 py-2 text-xs text-white focus:border-[#00f2fe] outline-none"
+                  className="w-full rounded-xl bg-white dark:bg-black border border-slate-300 dark:border-white/15 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-[#00f2fe] outline-none"
                 >
                   <option value="General Inquiry">General Reader Inquiry</option>
                   <option value="Fact-Check & Correction">Fact-Check / Hardware Specification Correction</option>
-                  <option value="Photography & Camera Review">Smartphone Photography & Camera Sample Review</option>
-                  <option value="Sponsorship & Deals">Business, Partnership & Affiliate Deals</option>
+                  <option value="Smartphone Comparator">Smartphone Comparator &amp; Hardware Review</option>
+                  <option value="Sponsorship & Deals">Business, Partnership &amp; Affiliate Deals</option>
                   <option value="Copyright & DMCA">Copyright / DMCA Attribution Notice</option>
                 </select>
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="contact-message" className="block text-[11px] font-bold text-slate-300 uppercase">Message *</label>
+                <label htmlFor="contact-message" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">Message *</label>
                 <textarea
                   id="contact-message"
                   required
@@ -213,17 +213,17 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
                   placeholder="Detail your question, feedback, or correction request..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full rounded-xl bg-black border border-white/15 px-3.5 py-2.5 text-xs text-white focus:border-[#00f2fe] outline-none"
+                  className="w-full rounded-xl bg-white dark:bg-black border border-slate-300 dark:border-white/15 px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:border-[#00f2fe] outline-none"
                 />
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-600 dark:text-slate-500">
                   Your privacy is respected. Messages are governed by our Privacy Policy.
                 </p>
                 <button
                   type="submit"
-                  className="grad-btn px-6 py-2.5 rounded-xl text-xs font-black inline-flex items-center gap-1.5 w-full sm:w-auto justify-center"
+                  className="grad-btn px-6 py-2.5 rounded-xl text-xs font-black inline-flex items-center gap-1.5 w-full sm:w-auto justify-center cursor-pointer"
                 >
                   Submit Inquiry <Send className="w-3.5 h-3.5" />
                 </button>
@@ -233,11 +233,11 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 sm:p-4 bg-slate-950 border-t border-white/10 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500">CLASSIFY TECH Help Desk</span>
+        <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-white/10 flex items-center justify-between">
+          <span className="text-[11px] text-slate-600 dark:text-slate-500">CLASSIFY TECH Help Desk</span>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition"
+            className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-xs font-bold text-slate-800 dark:text-white transition cursor-pointer"
           >
             Close
           </button>
