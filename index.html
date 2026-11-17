@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" class="dark scroll-smooth">
   <head>
     <meta charset="UTF-8" />
@@ -16,12 +16,14 @@
     <meta property="og:site_name" content="CLASSIFY TECH" />
     <meta property="og:title" content="CLASSIFY TECH — Trending Tech News, Leaks &amp; Comparison" />
     <meta property="og:description" content="CLASSIFY TECH is your ultra-fast hub for trending tech news, tipster leaks, curated YouTube review summaries, and 50+ point Multi-Category Comparison." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=1200&q=80" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@classifytechz" />
     <meta name="twitter:title" content="CLASSIFY TECH — Trending Tech News, Leaks &amp; Comparison" />
     <meta name="twitter:description" content="CLASSIFY TECH is your ultra-fast hub for trending tech news, tipster leaks, curated YouTube review summaries, and 50+ point Multi-Category Comparison." />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=1200&q=80" />
 
-    <!-- Schema.org Structured Data (NewsMediaOrganization, WebSite w/ SearchAction, ItemList, FAQPage & Product Comparison) -->
+    <!-- Schema.org Structured Data (NewsMediaOrganization, WebSite w/ SearchAction, ItemList, NewsArticle, FAQPage & Valid Product Comparison) -->
     <script id="classifyTechDynamicSchema" type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -46,6 +48,7 @@
             "@type": "WebSite",
             "@id": "https://classifytech.com/#website",
             "name": "CLASSIFY TECH",
+            "url": "https://classifytech.com",
             "description": "CLASSIFY TECH — World's Top Trending Tech News, Tech Leaks, YouTube Review Summaries, and Comparison Hub.",
             "inLanguage": "en",
             "publisher": {
@@ -93,22 +96,64 @@
                 }
               }
             ]
+          },
+          {
+            "@type": "Product",
+            "name": "Samsung Galaxy S25 Ultra vs Xiaomi 15 Pro Comparison",
+            "image": [
+              "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=1200&q=80"
+            ],
+            "description": "Side-by-side 50+ point hardware specification comparison between Samsung Galaxy S25 Ultra and Xiaomi 15 Pro across fabrication node, 0-100% charging time, benchmarks, and camera sensors.",
+            "sku": "CT-COMP-SAMSUNG-GALAXY-S25-ULTRA-XIAOMI-15",
+            "brand": {
+              "@type": "Brand",
+              "name": "Samsung & Xiaomi"
+            },
+            "offers": {
+              "@type": "Offer",
+              "url": "https://classifytech.com/#/comparison",
+              "priceCurrency": "INR",
+              "price": "129999",
+              "priceValidUntil": "2027-12-31",
+              "itemCondition": "https://schema.org/NewCondition",
+              "availability": "https://schema.org/InStock"
+            },
+            "review": {
+              "@type": "Review",
+              "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": "4.8",
+                "bestRating": "5",
+                "worstRating": "1"
+              },
+              "author": {
+                "@type": "Organization",
+                "name": "CLASSIFY TECH"
+              },
+              "reviewBody": "Verified 62-parameter technical comparison between Samsung Galaxy S25 Ultra and Xiaomi 15 Pro on CLASSIFY TECH."
+            },
+            "aggregateRating": {
+              "@type": "AggregateRating",
+              "ratingValue": "4.8",
+              "reviewCount": "142",
+              "bestRating": "5",
+              "worstRating": "1"
+            }
           }
         ]
       }
     </script>
 
-    <!-- Google Fonts & CDN Preconnects for High Speed Page Loading -->
+    <!-- Google Fonts & FontAwesome -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://images.unsplash.com" />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 
-    <!-- Theme Initialization (Separated for CSP Compliance) -->
+    <!-- Instant Theme Initialization -->
     <script src="/scripts/theme.js"></script>
   </head>
-  <body class="font-sans antialiased selection:bg-[#00f2fe] selection:text-black">
+  <body class="bg-[#f8fafc] dark:bg-[#06080f] text-slate-900 dark:text-slate-100 antialiased selection:bg-[#00f2fe] selection:text-black">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

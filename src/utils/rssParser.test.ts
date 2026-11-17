@@ -73,8 +73,8 @@ test('inferCategory accurately tags chipsets, AI, India launches, gaming, and 5G
   assert.equal(gaming.category, 'GAMING');
 
   const battery = inferCategory('OnePlus introduces 150W fast charging tech with 6500mAh silicon battery', 'high capacity battery');
-  assert.equal(battery.category, 'GAMING');
-  assert.equal(battery.badge, 'GAMING & BATTERY');
+  assert.equal(battery.category, 'BATTERY');
+  assert.equal(battery.badge, 'BATTERY TECH');
 
   const net = inferCategory('New 5G spectrum auction details revealed', 'telecom band n78');
   assert.equal(net.category, '5G');
@@ -198,6 +198,69 @@ test('Smartprix RSS feed is configured and fetchFeedWithCorsFallback falls back 
   assert.equal(articles.length, 1);
   assert.equal(articles[0].sourceName, 'Smartprix');
   assert.equal(articles[0].sourceUrl, 'https://www.smartprix.com/bytes/oneplus-13-vs-iqoo-13/');
+  assert.ok(typeof articles[0].publishedAtMs === 'number' && articles[0].publishedAtMs > 0);
 });
+
+test('fetchGlobalTrendingNews ranks live RSS stories above static fallback stories and dynamically promotes #1 newest live article as Hero', async () => {
+  const { fetchGlobalTrendingNews } = await import('./rssParser.ts');
+  const nowIso = new Date().toUTCString();
+  const sampleLiveXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title><![CDATA[Breaking Today: Galaxy S25 Slim & Snapdragon 8 Elite 2 Benchmarks Leak]]></title>
+          <link>https://www.gsmarena.com/breaking-live-story.php</link>
+          <pubDate>${nowIso}</pubDate>
+          <description><![CDATA[<p>Fresh live RSS story published today with real timestamp.</p>]]></description>
+        </item>
+      </channel>
+    </rss>`;
+
+  const mockLiveFetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/api/news/rss')) {
+      return new Response('', { status: 500 });
+    }
+    if (url.includes('api.rss2json.com')) {
+      return new Response('', { status: 500 });
+    }
+    if (url.includes('api.allorigins.win')) {
+      return new Response(JSON.stringify({ contents: sampleLiveXml }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response('', { status: 404 });
+  }) as typeof fetch;
+
+  const res = await fetchGlobalTrendingNews({ fetchFn: mockLiveFetch });
+  assert.equal(res.source, 'rss-syndication');
+  assert.equal(
+    res.articles[0].title,
+    'Breaking Today: Galaxy S25 Slim & Snapdragon 8 Elite 2 Benchmarks Leak'
+  );
+  assert.equal(res.articles[0].isHero, true);
+  assert.ok(res.articles.slice(1).every((a) => !a.isHero));
+});
+
+test('cleanHtmlText and transformRssItemToArticle strip broken WordPress data-medium-file attributes while extracting high-res image first and avoiding duplicate title prefix in desc', () => {
+  const wpItem: Rss2JsonItem = {
+    title: 'iQOO 13 Launching With 6,150mAh Silicon-Carbon Battery',
+    pubDate: new Date().toUTCString(),
+    link: 'https://www.smartprix.com/bytes/iqoo-13-launch/',
+    description:
+      '<p>iQOO 13 Launching With 6,150mAh Silicon-Carbon Battery: <img src="https://i0.wp.com/www.smartprix.com/bytes/wp-content/uploads/2026/11/SCR-20261117-mnzr.jpeg?fit=300%2C180&amp;ssl=1" data-medium-file="https://i0.wp.com/www.smartprix.com/bytes/wp-content/uploads/2026/11/SCR-20261117-mnzr.jpeg?fit=300%2C180&amp;ssl=1" data-large-file="https://i0.wp.com/www.smartprix.com/bytes/wp-content/uploads/2026/11/SCR-20261117-mnzr.jpeg?fit=1024%2C614&amp;ssl=1" /> The upcoming iQOO 13 pairs Qualcomm Snapdragon 8 Elite silicon with a 144Hz 2K Q10 LTPO OLED panel and 120W FlashCharge.</p>',
+  };
+
+  const article = transformRssItemToArticle(wpItem, 'Smartprix Bytes');
+  assert.ok(article.img.includes('SCR-20261117-mnzr.jpeg'), 'High-res image should be extracted before stripping tags');
+  assert.ok(article.img.includes('w=1200'), 'WordPress fit query param should be upgraded to w=1200');
+  assert.ok(!article.desc.includes('data-medium-file'), 'data-medium-file must be 100% removed from desc');
+  assert.ok(!article.desc.includes('data-large-file'), 'data-large-file must be 100% removed from desc');
+  assert.ok(!article.desc.startsWith(article.title), 'desc must not start with duplicate headline prefix');
+  assert.equal(article.category, 'BATTERY');
+});
+
+
 
 

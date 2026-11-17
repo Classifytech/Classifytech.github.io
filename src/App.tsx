@@ -28,7 +28,8 @@ const LegalModal = React.lazy(() =>
 import { defaultTechArticles, TechArticle } from './data/newsData.ts';
 import {
   fetchGlobalTrendingNews,
-  AUTO_REFRESH_INTERVAL_MS,
+  BACKGROUND_SYNC_INTERVAL_MS,
+  sanitizeSummaryDescription,
 } from './utils/rssParser.ts';
 import { fetchTrendingTechTweets } from './utils/socialRadar.ts';
 import { fetchTrendingTechVideos } from './utils/youtubeApi.ts';
@@ -45,6 +46,10 @@ import {
   type FavoriteItem,
 } from './utils/favorites.ts';
 import { extractGhostPostFromLocation } from './utils/affiliate.ts';
+import {
+  buildProductComparisonSchema,
+  buildNewsArticleSchemaNodes,
+} from './utils/seoSchema.ts';
 
 import { CheckCircle2 } from 'lucide-react';
 
@@ -59,23 +64,34 @@ declare global {
 const DEFAULT_DOCUMENT_TITLE =
   'CLASSIFY TECH — Trending Tech News, Leaks & Comparison';
 
+const LIVE_ARTICLES_CACHE_KEY = 'classify_articles_v10_global_wire';
+const LIVE_ARTICLES_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_SLIDING_WINDOW_ARTICLES = 60;
+const STATIC_FALLBACK_IDS = new Set(defaultTechArticles.map((a) => a.id));
+
 export default function App() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => loadFavoritesFromStorage());
 
   const [articles, setArticles] = useState<TechArticle[]>(() => {
     try {
-      const saved = localStorage.getItem('classify_articles_v6');
+      localStorage.removeItem('classify_articles_v6');
+      localStorage.removeItem('classify_articles_v8_live');
+      const saved = localStorage.getItem(LIVE_ARTICLES_CACHE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= 10) return parsed;
+        if (
+          parsed &&
+          typeof parsed.timestamp === 'number' &&
+          Date.now() - parsed.timestamp <= LIVE_ARTICLES_CACHE_TTL_MS &&
+          Array.isArray(parsed.articles) &&
+          parsed.articles.length >= 6
+        ) {
+          return parsed.articles;
+        }
       }
     } catch {}
     return defaultTechArticles;
   });
-
-  // RSS Sync State
-  const [isRssLoading, setIsRssLoading] = useState(false);
-  const [lastRssSyncTime, setLastRssSyncTime] = useState<string>('Just Now');
 
   // Modal states
   const [selectedArticle, setSelectedArticle] = useState<TechArticle | null>(null);
@@ -124,9 +140,11 @@ export default function App() {
   const [activeComparedNames, setActiveComparedNames] = useState<{
     name1: string;
     name2: string;
+    priceString?: string;
   }>({
     name1: BUILT_IN_SMARTPHONE_DB[0]?.name || 'Samsung Galaxy S25 Ultra',
-    name2: BUILT_IN_SMARTPHONE_DB[1]?.name || 'Apple iPhone 16 Pro Max',
+    name2: BUILT_IN_SMARTPHONE_DB[1]?.name || 'Xiaomi 15 Pro',
+    priceString: BUILT_IN_SMARTPHONE_DB[0]?.price || '₹1,29,999',
   });
 
   // Sync URL hash changes (#/comparison vs home)
@@ -272,17 +290,50 @@ export default function App() {
     }
   }, []);
 
-  // Dynamically update document.title when opening a story or comparing gadgets (Google Discover & Viral SEO)
+  // Dynamically update document.title and OpenGraph / Meta description when live news loads, a story opens, or comparing gadgets (Google Discover & Viral SEO)
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    const topStory = articles[0];
+    let pageTitle = DEFAULT_DOCUMENT_TITLE;
+    let pageDesc =
+      'CLASSIFY TECH is your ultra-fast hub for trending tech news, tipster leaks, curated YouTube review summaries, and 50+ point Multi-Category Comparison.';
+    let pageImage =
+      topStory?.img ||
+      'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?auto=format&fit=crop&w=1200&q=80';
+
     if (selectedArticle) {
-      document.title = `${selectedArticle.title} | CLASSIFY TECH`;
+      pageTitle = `${selectedArticle.title} | CLASSIFY TECH`;
+      pageDesc = selectedArticle.desc || pageDesc;
+      if (selectedArticle.img) pageImage = selectedArticle.img;
     } else if (isComparisonRoute && activeComparedNames.name1 && activeComparedNames.name2) {
-      document.title = `${activeComparedNames.name1} vs ${activeComparedNames.name2} — Comparison | CLASSIFY TECH`;
-    } else {
-      document.title = DEFAULT_DOCUMENT_TITLE;
+      pageTitle = `${activeComparedNames.name1} vs ${activeComparedNames.name2} — Comparison | CLASSIFY TECH`;
+      pageDesc = `Compare ${activeComparedNames.name1} vs ${activeComparedNames.name2} side-by-side across 50+ deep technical parameters on CLASSIFY TECH.`;
+    } else if (topStory?.title) {
+      pageTitle = `${topStory.title} — CLASSIFY TECH Live Tech Wire`;
+      pageDesc = topStory.desc || pageDesc;
     }
-  }, [selectedArticle, isComparisonRoute, activeComparedNames.name1, activeComparedNames.name2]);
+
+    document.title = pageTitle;
+
+    const setMetaContent = (selector: string, content: string) => {
+      const el = document.querySelector(selector) as HTMLMetaElement | null;
+      if (el) el.setAttribute('content', content);
+    };
+
+    setMetaContent('meta[name="description"]', pageDesc);
+    setMetaContent('meta[property="og:title"]', pageTitle);
+    setMetaContent('meta[property="og:description"]', pageDesc);
+    setMetaContent('meta[property="og:image"]', pageImage);
+    setMetaContent('meta[name="twitter:title"]', pageTitle);
+    setMetaContent('meta[name="twitter:description"]', pageDesc);
+    setMetaContent('meta[name="twitter:image"]', pageImage);
+  }, [
+    articles,
+    selectedArticle,
+    isComparisonRoute,
+    activeComparedNames.name1,
+    activeComparedNames.name2,
+  ]);
 
   // Dynamically inject comprehensive JSON-LD Schema in <head> (NewsMediaOrganization, WebSite w/ SearchAction, ItemList, FAQPage & Product comparison)
   useEffect(() => {
@@ -333,13 +384,14 @@ export default function App() {
       {
         '@type': 'ItemList',
         name: 'CLASSIFY TECH Top Trending Tech News',
-        itemListElement: articles.slice(0, 9).map((art, index) => ({
+        itemListElement: articles.slice(0, 10).map((art, index) => ({
           '@type': 'ListItem',
           position: index + 1,
           name: art.title,
           url: `${origin}/?story=${encodeURIComponent(art.id)}`,
         })),
       },
+      ...buildNewsArticleSchemaNodes(articles, origin, 10),
       {
         '@type': 'FAQPage',
         mainEntity: [
@@ -361,15 +413,12 @@ export default function App() {
           },
         ],
       },
-      {
-        '@type': 'Product',
-        name: `${activeComparedNames.name1} vs ${activeComparedNames.name2} Comparison`,
-        brand: {
-          '@type': 'Brand',
-          name: 'CLASSIFY TECH Comparison',
-        },
-        description: `Side-by-side 50+ point hardware specification comparison between ${activeComparedNames.name1} and ${activeComparedNames.name2}.`,
-      },
+      buildProductComparisonSchema({
+        origin,
+        item1Name: activeComparedNames.name1,
+        item2Name: activeComparedNames.name2,
+        priceString: activeComparedNames.priceString,
+      }),
     ];
 
     let scriptEl = document.getElementById('classifyTechDynamicSchema') as HTMLScriptElement | null;
@@ -383,70 +432,92 @@ export default function App() {
       '@context': 'https://schema.org',
       '@graph': schemaGraph,
     });
-  }, [articles, activeComparedNames.name1, activeComparedNames.name2]);
+  }, [articles, activeComparedNames.name1, activeComparedNames.name2, activeComparedNames.priceString]);
 
   /**
-   * Fetches latest global trending tech news via fetchGlobalTrendingNews()
-   * Auto-refreshes every 15 minutes in background without reloading the page.
+   * Silently fetches latest global & China trending tech news in the background.
+   * Merges incoming stories at the front (`[...freshArticles, ...prev]`), evicts static fallback
+   * stories once live articles arrive, sorts strictly newest-first (`b.publishedAtMs - a.publishedAtMs`),
+   * promotes ONLY index 0 as Hero, and maintains a sliding window of 60 live stories.
    */
-  const fetchLiveRssNews = async (isManual = false) => {
-    setIsRssLoading(true);
+  const fetchLiveRssNews = async () => {
     try {
-      const result = await fetchGlobalTrendingNews({ refresh: isManual });
+      const result = await fetchGlobalTrendingNews({ refresh: false, limit: MAX_SLIDING_WINDOW_ARTICLES });
       const freshArticles = result.articles;
 
-      if (freshArticles.length > 0 && result.source !== 'curated-fallback') {
+      if (freshArticles.length > 0) {
         setArticles((prev) => {
-          const seen = new Set<string>();
+          const hasLiveFresh = freshArticles.some((a) => !STATIC_FALLBACK_IDS.has(a.id));
+          const candidatePool = hasLiveFresh
+            ? [...freshArticles, ...prev].filter((a) => a && !STATIC_FALLBACK_IDS.has(a.id))
+            : [...freshArticles, ...prev];
+
+          const nowMs = Date.now();
+          const seenTitles = new Set<string>();
+          const seenUrls = new Set<string>();
           const deduped: TechArticle[] = [];
-          for (const item of [...prev, ...freshArticles]) {
-            const key = item.title.toLowerCase().trim();
-            if (!seen.has(key)) {
-              seen.add(key);
-              deduped.push(item);
-            }
+
+          for (const item of candidatePool) {
+            if (!item || !item.title) continue;
+            const titleKey = item.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            const urlKey = (item.sourceUrl || '').toLowerCase().trim();
+            if (!titleKey || seenTitles.has(titleKey)) continue;
+            if (urlKey && urlKey.length > 12 && seenUrls.has(urlKey)) continue;
+
+            seenTitles.add(titleKey);
+            if (urlKey && urlKey.length > 12) seenUrls.add(urlKey);
+
+            const clampedMs =
+              typeof item.publishedAtMs === 'number' &&
+              Number.isFinite(item.publishedAtMs) &&
+              item.publishedAtMs > 0
+                ? Math.min(nowMs, item.publishedAtMs)
+                : nowMs - 7 * 24 * 3600 * 1000;
+
+            deduped.push({
+              ...item,
+              desc: sanitizeSummaryDescription(item.desc, item.title),
+              publishedAtMs: clampedMs,
+            });
           }
 
-          deduped.sort((a, b) => {
-            if (a.isHero && !b.isHero) return -1;
-            if (!a.isHero && b.isHero) return 1;
-            return 0;
-          });
+          // Strict newest-first chronological sort
+          deduped.sort((a, b) => b.publishedAtMs - a.publishedAtMs);
 
-          return deduped.slice(0, 30);
+          // Dynamically promote ONLY the #1 newest live article as Hero
+          return deduped.slice(0, MAX_SLIDING_WINDOW_ARTICLES).map((art, idx) => ({
+            ...art,
+            isHero: idx === 0,
+          }));
         });
-
-        setLastRssSyncTime(result.updatedAt);
-
-        if (isManual) {
-          showToast(`Synced ${freshArticles.length} live articles across global tech feeds!`);
-        }
-      } else {
-        if (isManual) {
-          showToast('Live global tech wire is up to date.');
-        }
       }
     } catch {
-      if (isManual) {
-        showToast('Displaying verified global tech articles.');
-      }
-    } finally {
-      setIsRssLoading(false);
+      // Silent background sync
     }
   };
 
-  // Background 15-minute timer for automatic updates without page reload
+  // Silent automatic background synchronization: immediately on startup, every 3 minutes, and on tab focus
   useEffect(() => {
-    fetchLiveRssNews(false);
+    void fetchLiveRssNews();
 
     const timerId = setInterval(() => {
-      fetchLiveRssNews(false);
-    }, AUTO_REFRESH_INTERVAL_MS);
+      void fetchLiveRssNews();
+    }, BACKGROUND_SYNC_INTERVAL_MS);
 
-    return () => clearInterval(timerId);
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void fetchLiveRssNews();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(timerId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
-  // Load server-persisted custom articles
+  // Load server-persisted custom articles & silently resync when internet reconnects
   useEffect(() => {
     const loadServerContent = async () => {
       try {
@@ -456,8 +527,18 @@ export default function App() {
           if (data.success && Array.isArray(data.customNews) && data.customNews.length > 0) {
             setArticles((prev) => {
               const seen = new Set(prev.map((a) => a.id));
-              const newItems = data.customNews.filter((a: TechArticle) => a && !seen.has(a.id));
-              return [...newItems, ...prev];
+              const newItems = data.customNews
+                .filter((a: TechArticle) => a && !seen.has(a.id))
+                .map((a: TechArticle) => ({
+                  ...a,
+                  publishedAtMs: a.publishedAtMs || Date.now() - 24 * 3600 * 1000,
+                }));
+              const combined = [...newItems, ...prev];
+              combined.sort((a, b) => b.publishedAtMs - a.publishedAtMs);
+              return combined.slice(0, MAX_SLIDING_WINDOW_ARTICLES).map((art, idx) => ({
+                ...art,
+                isHero: idx === 0,
+              }));
             });
           }
         }
@@ -469,8 +550,7 @@ export default function App() {
     loadServerContent();
 
     const handleOnline = () => {
-      showToast('Internet restored! Syncing latest live tech news...');
-      fetchLiveRssNews(true);
+      void fetchLiveRssNews();
     };
     const handleOffline = () => {
       showToast('You are currently offline. Local cache and comparisons remain active.');
@@ -501,10 +581,13 @@ export default function App() {
     } catch {}
   }, [articles]);
 
-  // Sync state to localStorage
+  // Sync state to localStorage with 15-minute freshness timestamp
   useEffect(() => {
     try {
-      localStorage.setItem('classify_articles_v6', JSON.stringify(articles));
+      localStorage.setItem(
+        LIVE_ARTICLES_CACHE_KEY,
+        JSON.stringify({ timestamp: Date.now(), articles })
+      );
     } catch {}
   }, [articles]);
 
@@ -588,7 +671,13 @@ export default function App() {
       />
 
       {/* Live Tech News Wire Ticker */}
-      <Ticker />
+      <Ticker
+        articles={articles}
+        onSelectArticle={(art) => {
+          setSelectedArticle(art);
+          setInitialReportOpen(false);
+        }}
+      />
 
       {isComparisonRoute ? (
         /* Dedicated Full-Screen Comparison Page (#/comparison) */
@@ -616,6 +705,7 @@ export default function App() {
                   setActiveComparedNames({
                     name1: items[0].name,
                     name2: items[1].name,
+                    priceString: items[0].priceSummary,
                   });
                 }
               }}
@@ -638,9 +728,6 @@ export default function App() {
               setInitialReportOpen(true);
             }}
             onToggleFavorite={handleToggleFavoriteArticle}
-            onRefreshRss={() => fetchLiveRssNews(true)}
-            isRssLoading={isRssLoading}
-            lastRssSyncTime={lastRssSyncTime}
           />
 
           {/* 2. Sleek Comparison Hero Launch Card (#compareSection) */}

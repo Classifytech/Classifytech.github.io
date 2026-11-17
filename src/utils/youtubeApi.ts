@@ -14,6 +14,9 @@ export const techChannels: string[] = [
   'UCXUJJNoP1QupwsYIWFXmsZg', // Tech Burner
   'UCEPL07qzVsOcHd3sMUws65g', // Trakin Tech
   'UCVYamHliCI9rw1tHR1xbkfw', // Dave2D
+  'UCO2WJZKQoDW4Te6NHx4KfTg', // Geekyranjit
+  'UC9d89_bf0p2fb89242kG8IQ', // Gyan Therapy
+  'UCWFKCr40YwOZQx8FHU_ZqqQ', // JerryRigEverything
   'UCp0jHiCTqxDYZ0Bi0sKUmbw', // CLASSIFY TECH (blended naturally at end)
 ];
 
@@ -23,6 +26,9 @@ export const TECH_CHANNEL_META: Record<string, { name: string; handle: string }>
   UCXUJJNoP1QupwsYIWFXmsZg: { name: 'Tech Burner', handle: '@TechBurner' },
   UCEPL07qzVsOcHd3sMUws65g: { name: 'Trakin Tech', handle: '@TrakinTech' },
   UCVYamHliCI9rw1tHR1xbkfw: { name: 'Dave2D', handle: '@Dave2D' },
+  UCO2WJZKQoDW4Te6NHx4KfTg: { name: 'Geekyranjit', handle: '@Geekyranjit' },
+  UC9d89_bf0p2fb89242kG8IQ: { name: 'Gyan Therapy', handle: '@GyanTherapy' },
+  UCWFKCr40YwOZQx8FHU_ZqqQ: { name: 'JerryRigEverything', handle: '@JerryRigEverything' },
   UCp0jHiCTqxDYZ0Bi0sKUmbw: { name: 'CLASSIFY TECH', handle: '@classifytech' },
 };
 

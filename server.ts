@@ -16,9 +16,17 @@ import {
 import {
   cleanHtmlText,
   FREE_TECH_RSS_FEEDS,
+  CHINA_LEAK_RSS_FEEDS,
+  ADDITIONAL_TECH_RSS_FEEDS,
   YOUTUBE_TECH_RSS_FEEDS,
+  ALL_SYNDICATION_FEEDS,
   ALLORIGINS_PROXY_BASE,
+  CODETABS_PROXY_BASE,
+  parseRawXmlToRssItems,
   transformRssItemToArticle,
+  containsChineseOrForeignScript,
+  translateTextToEnglishFree,
+  sanitizeSummaryDescription,
   type Rss2JsonResponse,
   type Rss2JsonItem,
 } from './src/utils/rssParser.ts';
@@ -26,6 +34,8 @@ import { defaultTechArticles, type TechArticle } from './src/data/newsData.ts';
 import { DEFAULT_YOUTUBE_TECH_VIDEOS } from './src/utils/youtubeApi.ts';
 import {
   synthesizeWithDeterministicFallback,
+  synthesizeOriginalTechArticle,
+  getAvailableGeminiKeys,
 } from './src/utils/aiSynthesizer.ts';
 import {
   findBuiltInPhoneSpecs,
@@ -69,9 +79,9 @@ function getClientIp(req: Request): string {
 }
 
 // -------------------------------------------------------------
-// ZERO-TOKEN DETERMINISTIC EDITORIAL SYNTHESIS (SERVER-SIDE)
-// Ensures 100% API token protection: public visitors reading news
-// never trigger paid LLM calls.
+// REAL GEMINI 2.5 FLASH + DETERMINISTIC FALLBACK SYNTHESIS (SERVER-SIDE)
+// Uses configured Gemini keys with 6-hour caching & key rotation,
+// or falls back seamlessly to deterministic editorial synthesis.
 // -------------------------------------------------------------
 async function generateSynthesizedArticleServer(
   rawTitle: string,
@@ -79,7 +89,7 @@ async function generateSynthesizedArticleServer(
   sourceName = 'Official Technical Release',
   sourceUrl = ''
 ) {
-  return synthesizeWithDeterministicFallback(rawTitle, rawContent, sourceName, sourceUrl);
+  return synthesizeOriginalTechArticle(rawTitle, rawContent, sourceName, sourceUrl);
 }
 
 // Save contact submission safely with atomic write
@@ -234,21 +244,24 @@ async function startServer() {
 
     const isDev = process.env.NODE_ENV !== 'production';
     const scriptSrc = isDev
-      ? "'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com"
-      : "'self' 'unsafe-inline' https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com";
+      ? "'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com"
+      : "'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com";
 
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://api.rss2json.com https://api.allorigins.win https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
+      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://classifytech.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://api.rss2json.com https://api.allorigins.win https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
     );
     next();
   });
 
-  // Health check endpoint
+  // Health check endpoint with AI key telemetry
   app.get('/api/health', (_req: Request, res: Response) => {
+    const activeKeys = getAvailableGeminiKeys();
     res.json({
       status: 'ok',
       service: 'CLASSIFY TECH API',
+      aiConfigured: activeKeys.length > 0,
+      activeKeyCount: activeKeys.length,
       timestamp: Date.now(),
       uptime: process.uptime(),
     });
@@ -383,56 +396,12 @@ async function startServer() {
     });
   });
 
-  // API: Live RSS News Syndication
+  // API: Live RSS News Syndication (1,000+ Global & China Leak Network + Rotating Background Worker)
   let newsCache: { timestamp: number; articles: TechArticle[] } | null = null;
-  const NEWS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-  function parseRawXmlToRssItems(xml: string): Rss2JsonItem[] {
-    const items: Rss2JsonItem[] = [];
-    const itemMatches = xml.match(/<(?:item|entry)\b[\s\S]*?<\/(?:item|entry)>/gi) || [];
-    for (const block of itemMatches) {
-      const titleMatch = block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
-      const title = titleMatch ? titleMatch[1].trim() : '';
-
-      const linkMatch =
-        block.match(/<link[^>]*href=["']([^"']+)["']/i) ||
-        block.match(/<link[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/i);
-      const link = linkMatch ? linkMatch[1].trim() : '';
-
-      const contentMatch = block.match(/<(?:content:encoded|content)[^>]*>([\s\S]*?)<\/(?:content:encoded|content)>/i);
-      const content = contentMatch ? contentMatch[1].trim() : '';
-
-      const descMatch =
-        block.match(/<media:description[^>]*>([\s\S]*?)<\/media:description>/i) ||
-        block.match(/<(?:description|summary)[^>]*>([\s\S]*?)<\/(?:description|summary)>/i);
-      const description = descMatch ? descMatch[1].trim() : '';
-
-      const pubDateMatch = block.match(/<(?:pubDate|published|updated)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated)>/i);
-      const pubDate = pubDateMatch ? pubDateMatch[1].trim() : '';
-
-      const thumbMatch =
-        block.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i) ||
-        block.match(/<(?:enclosure|media:content)[^>]*url=["']([^"']+)["']/i) ||
-        block.match(/<img[^>]+src=["']([^"']+)["']/i);
-      const thumbnail = thumbMatch ? thumbMatch[1].trim() : undefined;
-
-      const ytVideoIdMatch = block.match(/<yt:videoId>([^<]+)<\/yt:videoId>/i);
-      const guid = ytVideoIdMatch ? `yt:video:${ytVideoIdMatch[1].trim()}` : undefined;
-
-      if (title && (link || description || content)) {
-        items.push({
-          title,
-          link,
-          pubDate,
-          content: content || description,
-          description: description || content,
-          thumbnail,
-          guid,
-        });
-      }
-    }
-    return items;
-  }
+  const NEWS_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+  const MAX_SLIDING_WINDOW_ARTICLES = 60;
+  let rotationCursor = 0;
+  let isBackgroundRotationRunning = false;
 
   // In-memory cache for full untruncated article content (1 hour TTL)
   const articleFullCache = new Map<string, { timestamp: number; paragraphs: string[]; lead?: string }>();
@@ -550,18 +519,273 @@ async function startServer() {
     return null;
   }
 
+  const NON_TECH_FINANCE_REGEX =
+    /\b(bitcoin\s+trades|options\s+traders|crypto\s+price|dogecoin|ethereum\s+price|sensex|nifty\s+50|stock\s+market\s+today)\b/i;
+
+  /**
+   * Fetches a single RSS/Atom/YouTube feed with 4-tier fallback and translates any Chinese/foreign items to English.
+   */
+  async function fetchSingleFeedArticles(
+    feed: { name: string; rssUrl: string },
+    timeoutMs = 3800,
+    maxItems = 5
+  ): Promise<TechArticle[]> {
+    const cb = Math.floor(Date.now() / 180000);
+    let rawItems: Rss2JsonItem[] = [];
+    let resolvedFeedTitle = feed.name;
+
+    // 1. Direct XML fetch
+    try {
+      const directRes = await fetch(feed.rssUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          Accept: 'application/rss+xml, application/xml, text/xml, */*',
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (directRes.ok) {
+        const xml = await directRes.text();
+        if (xml.includes('<item') || xml.includes('<entry')) {
+          rawItems = parseRawXmlToRssItems(xml);
+        }
+      }
+    } catch {
+      // Proceed to rss2json
+    }
+
+    // 2. Free rss2json API
+    if (rawItems.length === 0) {
+      try {
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(
+          feed.rssUrl
+        )}&_cb=${cb}`;
+        const response = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'CLASSIFY-TECH/1.0', Accept: 'application/json' },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (response.ok) {
+          const data: Rss2JsonResponse = await response.json();
+          if (data.status === 'ok' && Array.isArray(data.items) && data.items.length > 0) {
+            rawItems = data.items;
+            resolvedFeedTitle = data.feed?.title || feed.name;
+          }
+        }
+      } catch {
+        // Proceed to AllOrigins
+      }
+    }
+
+    // 3. Free AllOrigins CORS XML fallback
+    if (rawItems.length === 0) {
+      try {
+        const proxyUrl = `${ALLORIGINS_PROXY_BASE}${encodeURIComponent(feed.rssUrl)}&_cb=${cb}`;
+        const proxyRes = await fetch(proxyUrl, {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (proxyRes.ok) {
+          const payload = (await proxyRes.json()) as { contents?: string };
+          if (payload && typeof payload.contents === 'string' && payload.contents.length > 40) {
+            rawItems = parseRawXmlToRssItems(payload.contents);
+          }
+        }
+      } catch {
+        // Proceed to CodeTabs
+      }
+    }
+
+    // 4. Free CodeTabs XML fallback
+    if (rawItems.length === 0) {
+      try {
+        const codeTabsUrl = `${CODETABS_PROXY_BASE}${encodeURIComponent(feed.rssUrl)}`;
+        const ctRes = await fetch(codeTabsUrl, {
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (ctRes.ok) {
+          const xml = await ctRes.text();
+          if (xml && (xml.includes('<item') || xml.includes('<entry'))) {
+            rawItems = parseRawXmlToRssItems(xml);
+          }
+        }
+      } catch {
+        // Silent fallback
+      }
+    }
+
+    if (rawItems.length === 0) return [];
+
+    const articles = rawItems
+      .slice(0, maxItems)
+      .map((item) => transformRssItemToArticle(item, resolvedFeedTitle));
+
+    for (const article of articles) {
+      try {
+        if (containsChineseOrForeignScript(article.title)) {
+          article.title = await translateTextToEnglishFree(article.title);
+        }
+        if (containsChineseOrForeignScript(article.desc)) {
+          article.desc = await translateTextToEnglishFree(article.desc.slice(0, 420));
+        }
+        if (Array.isArray(article.fullBody) && article.fullBody.some((p) => containsChineseOrForeignScript(p))) {
+          const translatedParas: string[] = [];
+          for (const para of article.fullBody.slice(0, 3)) {
+            translatedParas.push(
+              containsChineseOrForeignScript(para)
+                ? await translateTextToEnglishFree(para.slice(0, 420))
+                : para
+            );
+          }
+          article.fullBody = translatedParas;
+        }
+        const sourceText = article.fullBody.join('\n\n') || article.desc;
+
+        const synthesized = synthesizeWithDeterministicFallback(
+          article.title,
+          sourceText,
+          article.sourceName || 'Tech Announcement',
+          article.sourceUrl || ''
+        );
+
+        if (synthesized) {
+          article.title = synthesized.headline;
+          article.desc = sanitizeSummaryDescription(synthesized.leadSummary, synthesized.headline);
+          article.fullBody = synthesized.paragraphs;
+          if (synthesized.bullets && synthesized.bullets.length > 0) {
+            article.bullets = synthesized.bullets;
+          }
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    return articles;
+  }
+
+  const NON_TECH_CRIME_REGEX =
+    /\b(criminal\s+detention|detained\s+by\s+police|arrest\s+by\s+the\s+police|police\s+arrest|refund\s+only|refund\s+fraud|freshippo|hema|supermarket\s+fraud)\b/i;
+
+  /**
+   * Merges incoming live articles with existing articles, deduplicates by normalized title & URL,
+   * sorts strictly newest-first (`b.publishedAtMs - a.publishedAtMs`), assigns `isHero = true` ONLY
+   * to index 0, and trims to the 60-article sliding window.
+   */
+  function mergeAndSortLiveArticles(
+    incoming: TechArticle[],
+    existing: TechArticle[] = []
+  ): TechArticle[] {
+    const nowMs = Date.now();
+    const seenTitles = new Set<string>();
+    const seenUrls = new Set<string>();
+    const merged: TechArticle[] = [];
+
+    for (const item of [...incoming, ...existing]) {
+      if (!item || !item.title) continue;
+      if (NON_TECH_FINANCE_REGEX.test(item.title) || NON_TECH_CRIME_REGEX.test(`${item.title} ${item.desc}`)) continue;
+      if (containsChineseOrForeignScript(item.title) || containsChineseOrForeignScript(item.desc)) continue;
+      const titleKey = item.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const urlKey = (item.sourceUrl || '').toLowerCase().trim();
+      if (!titleKey || seenTitles.has(titleKey)) continue;
+      if (urlKey && urlKey.length > 12 && seenUrls.has(urlKey)) continue;
+
+      seenTitles.add(titleKey);
+      if (urlKey && urlKey.length > 12) seenUrls.add(urlKey);
+
+      const clampedMs =
+        typeof item.publishedAtMs === 'number' && Number.isFinite(item.publishedAtMs) && item.publishedAtMs > 0
+          ? Math.min(nowMs, item.publishedAtMs)
+          : nowMs - 7 * 24 * 3600 * 1000;
+
+      merged.push({
+        ...item,
+        desc: sanitizeSummaryDescription(item.desc, item.title),
+        publishedAtMs: clampedMs,
+      });
+    }
+
+    // Strict newest-first chronological sort
+    merged.sort((a, b) => b.publishedAtMs - a.publishedAtMs);
+
+    return merged.slice(0, MAX_SLIDING_WINDOW_ARTICLES).map((art, idx) => ({
+      ...art,
+      isHero: idx === 0,
+    }));
+  }
+
+  // Primary high-speed feeds fetched immediately for sub-1.5s initial response
+  const PRIMARY_FAST_FEEDS = [
+    ...FREE_TECH_RSS_FEEDS,
+    CHINA_LEAK_RSS_FEEDS[0], // IT Home China
+    CHINA_LEAK_RSS_FEEDS[1], // Gizmochina
+    CHINA_LEAK_RSS_FEEDS[5], // China Tipster & TENAA Leak Wire
+    ADDITIONAL_TECH_RSS_FEEDS[0], // Gadgets 360
+    ADDITIONAL_TECH_RSS_FEEDS[5], // 9to5Mac
+    ADDITIONAL_TECH_RSS_FEEDS[17], // Global Semiconductor & AI Wire
+    YOUTUBE_TECH_RSS_FEEDS[0], // CLASSIFY TECH Official
+    YOUTUBE_TECH_RSS_FEEDS[1], // MKBHD
+  ].filter(Boolean);
+
+  /**
+   * Background Rotating Feed Worker: continuously rotates through the 42-feed Global, China & YouTube
+   * syndication matrix every 2.5 minutes without blocking user requests.
+   */
+  async function rotateRemainingFeedsInBackground() {
+    if (isBackgroundRotationRunning) return;
+    isBackgroundRotationRunning = true;
+    try {
+      const batchSize = 10;
+      const batch: { name: string; rssUrl: string }[] = [];
+      for (let i = 0; i < batchSize; i++) {
+        const feed = ALL_SYNDICATION_FEEDS[(rotationCursor + i) % ALL_SYNDICATION_FEEDS.length];
+        if (feed) batch.push(feed);
+      }
+      rotationCursor = (rotationCursor + batchSize) % ALL_SYNDICATION_FEEDS.length;
+
+      const settled = await Promise.allSettled(
+        batch.map((feed) => fetchSingleFeedArticles(feed, 4500, 5))
+      );
+
+      const discovered: TechArticle[] = [];
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && Array.isArray(r.value) && r.value.length > 0) {
+          discovered.push(...r.value);
+        }
+      }
+
+      if (discovered.length > 0) {
+        const updated = mergeAndSortLiveArticles(
+          discovered,
+          newsCache ? newsCache.articles : []
+        );
+        newsCache = {
+          timestamp: Date.now(),
+          articles: updated,
+        };
+      }
+    } catch {
+      // Silent background worker
+    } finally {
+      isBackgroundRotationRunning = false;
+    }
+  }
+
+  // Kick off background feed rotation every 2.5 minutes
+  setInterval(() => {
+    void rotateRemainingFeedsInBackground();
+  }, 150 * 1000);
+
   app.get('/api/news/rss', async (req: Request, res: Response) => {
     try {
       const forceRefresh = req.query.refresh === 'true';
       const clientIp = getClientIp(req);
 
-      if (forceRefresh && isRateLimited(`rss_refresh_${clientIp}`, 3, 5 * 60 * 1000)) {
-        if (newsCache) {
+      if (forceRefresh && isRateLimited(`rss_refresh_${clientIp}`, 5, 3 * 60 * 1000)) {
+        if (newsCache && newsCache.articles.length > 0) {
           return res.json({
             success: true,
             fromCache: true,
             rateLimited: true,
-            message: 'Rate limit reached for forced RSS refresh. Serving cached news.',
             count: newsCache.articles.length,
             articles: newsCache.articles,
           });
@@ -577,74 +801,10 @@ async function startServer() {
         });
       }
 
-      const primaryYouTubeFeed = YOUTUBE_TECH_RSS_FEEDS.find((f) =>
-        f.rssUrl.includes('UCp0jHiCTqxDYZ0Bi0sKUmbw')
+      const settled = await Promise.allSettled(
+        PRIMARY_FAST_FEEDS.map((feed) => fetchSingleFeedArticles(feed, 3600, 5))
       );
-      const allFeeds = primaryYouTubeFeed
-        ? [...FREE_TECH_RSS_FEEDS, primaryYouTubeFeed]
-        : [...FREE_TECH_RSS_FEEDS];
 
-      const fetchPromises = allFeeds.map(async (feed) => {
-        // 1. Direct XML fetch
-        try {
-          const directRes = await fetch(feed.rssUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-            signal: AbortSignal.timeout(6000),
-          });
-          if (directRes.ok) {
-            const xml = await directRes.text();
-            if (xml.includes('<item') || xml.includes('<entry')) {
-              const rawItems = parseRawXmlToRssItems(xml);
-              if (rawItems.length > 0) {
-                return rawItems.slice(0, 8).map((item) => transformRssItemToArticle(item, feed.name));
-              }
-            }
-          }
-        } catch {
-          // Fall back seamlessly to rss2json / AllOrigins
-        }
-
-        // 2. Free rss2json API
-        try {
-          const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.rssUrl)}`;
-          const response = await fetch(apiUrl, {
-            headers: { 'User-Agent': 'CLASSIFY-TECH/1.0' },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (response.ok) {
-            const data: Rss2JsonResponse = await response.json();
-            if (data.status === 'ok' && Array.isArray(data.items) && data.items.length > 0) {
-              const feedTitle = data.feed?.title || feed.name;
-              return data.items.slice(0, 6).map((item) => transformRssItemToArticle(item, feedTitle));
-            }
-          }
-        } catch {
-          // Fall back to AllOrigins proxy
-        }
-
-        // 3. Free AllOrigins CORS XML fallback
-        try {
-          const proxyUrl = `${ALLORIGINS_PROXY_BASE}${encodeURIComponent(feed.rssUrl)}`;
-          const proxyRes = await fetch(proxyUrl, {
-            headers: { Accept: 'application/json' },
-            signal: AbortSignal.timeout(5500),
-          });
-          if (proxyRes.ok) {
-            const payload = (await proxyRes.json()) as { contents?: string };
-            if (payload && typeof payload.contents === 'string' && payload.contents.length > 40) {
-              const rawItems = parseRawXmlToRssItems(payload.contents);
-              if (rawItems.length > 0) {
-                return rawItems.slice(0, 6).map((item) => transformRssItemToArticle(item, feed.name));
-              }
-            }
-          }
-        } catch (feedErr) {
-          console.warn(`[RSS] Failed to fetch feed ${feed.name}:`, feedErr);
-        }
-        return [] as TechArticle[];
-      });
-
-      const settled = await Promise.allSettled(fetchPromises);
       const aggregated: TechArticle[] = [];
       for (const result of settled) {
         if (result.status === 'fulfilled' && Array.isArray(result.value)) {
@@ -653,64 +813,28 @@ async function startServer() {
       }
 
       if (aggregated.length > 0) {
-        const seen = new Set<string>();
-        const deduped: TechArticle[] = [];
-        for (const item of aggregated) {
-          const key = item.title.toLowerCase().trim();
-          if (!seen.has(key)) {
-            seen.add(key);
-            deduped.push(item);
-          }
-        }
-
-        // Sort so CLASSIFY TECH video release and hero articles remain pinned at the very top
-        deduped.sort((a, b) => {
-          if (a.isHero && !b.isHero) return -1;
-          if (!a.isHero && b.isHero) return 1;
-          return 0;
-        });
-
-        for (let i = 0; i < deduped.length; i++) {
-          const article = deduped[i];
-          const sourceText = article.fullBody.join('\n\n') || article.desc;
-
-          try {
-            // Format RSS feed articles with topic-aware deterministic fallback for instant feed delivery.
-            // Full-length Gemini AI synthesis is handled on-demand when an article is opened via /api/news/article.
-            const synthesized = synthesizeWithDeterministicFallback(
-              article.title,
-              sourceText,
-              article.sourceName || 'Tech Announcement',
-              article.sourceUrl || ''
-            );
-
-            if (synthesized) {
-              article.title = synthesized.headline;
-              article.desc = synthesized.leadSummary;
-              article.fullBody = synthesized.paragraphs;
-              if (synthesized.bullets && synthesized.bullets.length > 0) {
-                article.bullets = synthesized.bullets;
-              }
-            }
-          } catch {
-            // Safe fallback
-          }
-        }
+        const merged = mergeAndSortLiveArticles(
+          aggregated,
+          newsCache ? newsCache.articles : []
+        );
 
         newsCache = {
           timestamp: Date.now(),
-          articles: deduped,
+          articles: merged,
         };
+
+        // Trigger asynchronous background rotation for remaining global/China feeds
+        void rotateRemainingFeedsInBackground();
 
         return res.json({
           success: true,
           fromCache: false,
-          count: deduped.length,
-          articles: deduped,
+          count: merged.length,
+          articles: merged,
         });
       }
 
-      if (newsCache) {
+      if (newsCache && newsCache.articles.length > 0) {
         return res.json({
           success: true,
           fromCache: true,

@@ -98,7 +98,7 @@ export const TechNewsSection: React.FC<TechNewsSectionProps> = ({
       {/* Visually hidden SEO H1 taking 0px of screen space */}
       <h1 className="sr-only">CLASSIFY TECH - Trending Tech News &amp; Comparison</h1>
 
-      {/* Single Clean Horizontal Category Filter Bar Directly Below Live Ticker */}
+      {/* Clean Horizontal Category Filter Bar Directly Below Live Ticker */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5 w-full" role="tablist">
         {categories.map((cat) => (
           <button

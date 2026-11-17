@@ -303,9 +303,9 @@ export const NewsModal: React.FC<NewsModalProps> = ({
             </div>
           </div>
 
-          {/* BELOW ARTICLE: Clean Publisher Attribution & Fact-Check Option */}
+          {/* BELOW ARTICLE: Clean Publisher Attribution */}
           <div className="mt-4 pt-3 border-t border-slate-200 dark:border-white/10 space-y-3 pb-2 text-xs">
-            <div className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-between gap-2.5">
               <div className="flex items-center gap-2 min-w-0">
                 <CheckCircle2 className="w-4 h-4 text-cyan-600 dark:text-[#00f2fe] shrink-0" />
                 <div className="text-slate-700 dark:text-slate-300 font-medium truncate">
@@ -314,36 +314,6 @@ export const NewsModal: React.FC<NewsModalProps> = ({
                   <span className="text-slate-400 dark:text-slate-500 mx-1.5">•</span>
                   <span className="text-slate-500 dark:text-slate-400">{article.time}</span>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {(article.videoUrl || article.sourceUrl) && (
-                  <a
-                    href={article.videoUrl || article.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 dark:bg-[#00f2fe] dark:hover:bg-cyan-300 text-white dark:text-slate-950 font-black inline-flex items-center gap-1.5 transition shadow-xs"
-                  >
-                    <span>
-                      {article.isVideo ||
-                      (article.sourceUrl &&
-                        (article.sourceUrl.includes('youtube.com') ||
-                          article.sourceUrl.includes('youtu.be')))
-                        ? 'Watch Original Video'
-                        : 'Read Official Source'}
-                    </span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setShowReport(!showReport)}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold inline-flex items-center gap-1 transition cursor-pointer"
-                >
-                  <Flag className="w-3.5 h-3.5" />
-                  <span>Report</span>
-                </button>
               </div>
             </div>
           </div>

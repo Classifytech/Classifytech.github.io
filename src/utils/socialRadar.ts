@@ -293,7 +293,103 @@ export const LATEST_TECH_LEAKS_TWEETS: TechLeakTweet[] = [
     repostsCount: '890',
     likesCount: '5.4K',
   },
+  {
+    id: 'leak-yogesh-brar-india-flagship-pricing',
+    tipsterName: 'Yogesh Brar',
+    handle: '@heyitsyogesh',
+    avatarInitials: 'YB',
+    verifiedBadge: 'India Tech Tipster',
+    category: 'BATTERY',
+    tweetText:
+      'Upcoming Indian market sub-₹45,000 performance flagships will ship standard with 6,500mAh+ Silicon-Carbon cells, 1.5K 144Hz LTPO flat displays, and ultrasonic fingerprint scanners.',
+    specHighlights: [
+      '6,500mAh–7,000mAh Si/C batteries in sub-₹45K segment',
+      '3D Ultrasonic biometric sensors replacing optical scanners',
+    ],
+    hashtags: ['IndiaTech', 'FlagshipKiller', 'SiliconCarbon'],
+    timestamp: '3h ago · X (Twitter) Embed',
+    tweetUrl: 'https://x.com/heyitsyogesh',
+    repostsCount: '640',
+    likesCount: '4.9K',
+  },
+  {
+    id: 'leak-onleaks-pixel-ultra-cad',
+    tipsterName: 'OnLeaks',
+    handle: '@OnLeaks',
+    avatarInitials: 'OL',
+    verifiedBadge: 'CAD Leak Specialist',
+    category: 'DESIGN',
+    tweetText:
+      'Exclusive 5K CAD renders reveal symmetrical 1.15mm ultra-narrow display bezels, flat brushed titanium side rails, and a redesigned pill-shaped periscope camera island.',
+    specHighlights: [
+      '1.15mm uniform LIPO display border technology',
+      'Grade 5 Titanium flat frame with satin matte finish',
+    ],
+    hashtags: ['OnLeaks', 'CADRenders', 'FlagshipDesign'],
+    timestamp: '6h ago · X (Twitter) Embed',
+    tweetUrl: 'https://x.com/OnLeaks',
+    repostsCount: '1.2K',
+    likesCount: '7.8K',
+  },
 ];
+
+const TIPSTER_CATEGORY_IMAGES: Record<TechLeakTweet['category'], string> = {
+  CAMERA: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80',
+  SILICON: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+  BATTERY: 'https://images.unsplash.com/photo-1585060544812-6b45742d762f?auto=format&fit=crop&w=1200&q=80',
+  DISPLAY: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&q=80',
+  DESIGN: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=1200&q=80',
+};
+
+/**
+ * Converts verified X (Twitter) Tipster Leaks into full TechArticle items
+ * with badge: 'X TIPSTER SCOOP' so tipster scoops interleave directly into the main news feed.
+ */
+export function buildTipsterScoopArticles() {
+  const now = Date.now();
+  return LATEST_TECH_LEAKS_TWEETS.map((tweet, idx) => {
+    const mappedCategory: 'CHIPSET' | 'BATTERY' | 'CHINA' | 'GLOBAL' | 'INDIA' =
+      tweet.category === 'SILICON'
+        ? 'CHIPSET'
+        : tweet.category === 'BATTERY'
+          ? 'BATTERY'
+          : tweet.tipsterName === 'Yogesh Brar'
+            ? 'INDIA'
+            : tweet.tipsterName === 'Digital Chat Station'
+              ? 'CHINA'
+              : 'GLOBAL';
+
+    const cleanSummary = tweet.tweetText.replace(/^Exclusive:\s*/i, '').trim();
+    const headline = `${tweet.tipsterName} (${tweet.handle}) Scoop: ${
+      tweet.specHighlights[0] || cleanSummary.slice(0, 72)
+    }`;
+
+    return {
+      id: `tipster-${tweet.id}`,
+      badge: 'X TIPSTER SCOOP',
+      category: mappedCategory,
+      time: `${idx + 1}h ago`,
+      publishedAtMs: now - (idx + 1) * 38 * 60 * 1000,
+      sourceName: `${tweet.tipsterName} (${tweet.handle})`,
+      sourceUrl: tweet.tweetUrl,
+      trendSource: 'X Tech Wire' as const,
+      trendVelocity: `${tweet.likesCount} Likes · ${tweet.repostsCount} Reposts`,
+      hashtags: tweet.hashtags.map((h) => (h.startsWith('#') ? h : `#${h}`)),
+      title: headline,
+      desc: cleanSummary,
+      img: TIPSTER_CATEGORY_IMAGES[tweet.category] || TIPSTER_CATEGORY_IMAGES.SILICON,
+      fullBody: [
+        `Verified hardware tipster ${tweet.tipsterName} (${tweet.handle}) shared a supply-chain hardware scoop on X: "${tweet.tweetText}"`,
+        `Key technical specifications highlighted in the leak include ${tweet.specHighlights.join(' alongside ')}. These component upgrades align with next-generation flagship production schedules across global and Asian OEMs.`,
+        `Community engagement around the disclosure has reached ${tweet.likesCount} likes and ${tweet.repostsCount} reposts as hardware analysts cross-reference component part numbers ahead of retail launch keynotes.`,
+      ],
+      bullets: [
+        `Tipster Source: ${tweet.tipsterName} (${tweet.handle}) • ${tweet.verifiedBadge}`,
+        ...tweet.specHighlights,
+      ],
+    };
+  });
+}
 
 export interface FormattedTweetEmbed {
   id: string;

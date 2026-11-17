@@ -14,6 +14,7 @@ export interface TechArticle {
   isVideo?: boolean;
   videoUrl?: string;
   isHero?: boolean;
+  publishedAtMs: number;
   channelName?: string;
   trendSource?: 'Google Trends' | 'X Tech Wire' | 'YouTube Tech' | 'Brand Showcase';
   trendVelocity?: string;
@@ -108,7 +109,7 @@ export const GLOBAL_TRENDING_PULSES: GlobalTrendPulse[] = [
   },
 ];
 
-export const defaultTechArticles: TechArticle[] = [
+const rawDefaultTechArticles: Omit<TechArticle, 'publishedAtMs'>[] = [
   {
     id: 'tsmc-3nm-n3e-snapdragon-dimensity-breakout',
     badge: 'SILICON & AI',
@@ -385,3 +386,10 @@ export const defaultTechArticles: TechArticle[] = [
     ]
   }
 ];
+
+export const defaultTechArticles: TechArticle[] = rawDefaultTechArticles.map((art, idx) => ({
+  ...art,
+  isHero: false,
+  publishedAtMs: Date.now() - (7 * 24 + idx) * 3600 * 1000,
+}));
+
