@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header.tsx';
 import { Ticker } from './components/Ticker.tsx';
 import { TechNewsSection } from './components/TechNewsSection.tsx';
@@ -6,29 +6,17 @@ import { FavoritesSection } from './components/FavoritesSection.tsx';
 import { Footer } from './components/Footer.tsx';
 import { LinkMakerSection } from './components/LinkMakerSection.tsx';
 import { GhostPostView } from './components/GhostPostView.tsx';
-
-// Lazy-loaded components and modals to optimize initial bundle size & webpage load speed
-const CompareSection = React.lazy(() =>
-  import('./components/CompareSection.tsx').then((m) => ({ default: m.CompareSection }))
-);
-const ComparisonPage = React.lazy(() =>
-  import('./components/ComparisonPage.tsx').then((m) => ({ default: m.ComparisonPage }))
-);
-const NewsModal = React.lazy(() =>
-  import('./components/NewsModal.tsx').then((m) => ({ default: m.NewsModal }))
-);
-const ContactModal = React.lazy(() =>
-  import('./components/ContactModal.tsx').then((m) => ({ default: m.ContactModal }))
-);
-const LegalModal = React.lazy(() =>
-  import('./components/LegalModal.tsx').then((m) => ({ default: m.LegalModal }))
-);
+import { CompareSection } from './components/CompareSection.tsx';
+import { ComparisonPage } from './components/ComparisonPage.tsx';
+import { NewsModal } from './components/NewsModal.tsx';
+import { ContactModal } from './components/ContactModal.tsx';
+import { LegalModal } from './components/LegalModal.tsx';
 
 // Data & Automation Hooks
 import { defaultTechArticles, TechArticle } from './data/newsData.ts';
 import {
   fetchGlobalTrendingNews,
-  BACKGROUND_SYNC_INTERVAL_MS,
+  HOURLY_SYNC_INTERVAL_MS,
   sanitizeSummaryDescription,
 } from './utils/rssParser.ts';
 import { fetchTrendingTechTweets } from './utils/socialRadar.ts';
@@ -65,7 +53,9 @@ const DEFAULT_DOCUMENT_TITLE =
   'CLASSIFY TECH — Trending Tech News, Leaks & Comparison';
 
 const LIVE_ARTICLES_CACHE_KEY = 'classify_articles_v10_global_wire';
-const LIVE_ARTICLES_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const LIVE_ARTICLES_SYNC_TS_KEY = 'classify_articles_last_sync_ms';
+const LIVE_SESSION_SYNC_KEY = 'classify_live_session_synced';
+const LIVE_ARTICLES_CACHE_TTL_MS = HOURLY_SYNC_INTERVAL_MS; // Strict 60-minute (3,600,000 ms) freshness window
 const MAX_SLIDING_WINDOW_ARTICLES = 60;
 const STATIC_FALLBACK_IDS = new Set(defaultTechArticles.map((a) => a.id));
 
@@ -341,7 +331,7 @@ export default function App() {
     const origin =
       typeof window !== 'undefined' && window.location.origin
         ? window.location.origin
-        : 'https://classifytech.com';
+        : 'https://classifytechz.blogspot.com';
 
     const p1 = BUILT_IN_SMARTPHONE_DB[0];
     const p2 = BUILT_IN_SMARTPHONE_DB[1];
@@ -490,23 +480,45 @@ export default function App() {
             isHero: idx === 0,
           }));
         });
+        try {
+          localStorage.setItem(LIVE_ARTICLES_SYNC_TS_KEY, String(Date.now()));
+          sessionStorage.setItem(LIVE_SESSION_SYNC_KEY, '1');
+        } catch {}
       }
     } catch {
       // Silent background sync
     }
   };
 
-  // Silent automatic background synchronization: immediately on startup, every 3 minutes, and on tab focus
+  // Automatic Hourly Live News Sync (60-minute freshness rule):
+  // 1) Immediately fetch live news on page load if cache is missing, older than 60 minutes, or on a fresh session.
+  // 2) Automatically re-sync silently every 60 minutes (3,600,000 ms) while open without page reload flicker.
+  // 3) Check freshness on tab focus and refresh immediately if >= 60 minutes have elapsed.
   useEffect(() => {
-    void fetchLiveRssNews();
+    const isCacheStaleOrFreshSession = (): boolean => {
+      try {
+        const lastSyncMs = Number(localStorage.getItem(LIVE_ARTICLES_SYNC_TS_KEY) || '0');
+        const hasSessionSynced = sessionStorage.getItem(LIVE_SESSION_SYNC_KEY) === '1';
+        if (!hasSessionSynced || !Number.isFinite(lastSyncMs) || lastSyncMs <= 0) return true;
+        return Date.now() - lastSyncMs >= HOURLY_SYNC_INTERVAL_MS;
+      } catch {
+        return true;
+      }
+    };
+
+    if (isCacheStaleOrFreshSession()) {
+      void fetchLiveRssNews();
+    }
 
     const timerId = setInterval(() => {
       void fetchLiveRssNews();
-    }, BACKGROUND_SYNC_INTERVAL_MS);
+    }, HOURLY_SYNC_INTERVAL_MS);
 
     const handleVisibilityChange = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void fetchLiveRssNews();
+        if (isCacheStaleOrFreshSession()) {
+          void fetchLiveRssNews();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -521,8 +533,14 @@ export default function App() {
   useEffect(() => {
     const loadServerContent = async () => {
       try {
-        const res = await fetch('/api/content');
-        if (res.ok) {
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+        const isLocalPreview =
+          host === 'localhost' || host === '127.0.0.1' || host.endsWith('.run.app');
+        if (!isLocalPreview) return;
+
+        const res = await fetch('/api/content', { headers: { Accept: 'application/json' } });
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
           if (data.success && Array.isArray(data.customNews) && data.customNews.length > 0) {
             setArticles((prev) => {
@@ -542,8 +560,8 @@ export default function App() {
             });
           }
         }
-      } catch (err) {
-        console.warn('Could not load server content:', err);
+      } catch {
+        // Pure client-side hosting (e.g. Blogger) runs without /api/content
       }
     };
 
@@ -682,35 +700,21 @@ export default function App() {
       {isComparisonRoute ? (
         /* Dedicated Full-Screen Comparison Page (#/comparison) */
         <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-3 pb-10 sm:pt-4 sm:pb-14 w-full flex-1">
-          <Suspense
-            fallback={
-              <div className="glass-card rounded-2xl p-8 sm:p-12 text-center border border-cyan-500/25 space-y-3">
-                <div className="w-8 h-8 border-2 border-[#00f2fe] border-t-transparent rounded-full animate-spin mx-auto" />
-                <div className="text-slate-900 dark:text-white font-extrabold text-sm sm:text-base">
-                  Loading 50+ Point Multi-Category Comparison...
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Initializing Smartphones, Laptops, Tablets, Smartwatches, Earbuds, Smart TVs &amp; Chipsets
-                </p>
-              </div>
-            }
-          >
-            <ComparisonPage
-              initialCategory={comparisonCategory}
-              initialPair={initialComparePair}
-              onBackToHome={() => handleBackToHome()}
-              onShowToast={showToast}
-              onActiveComparisonChange={(items: DeepComparisonItem[]) => {
-                if (items.length >= 2) {
-                  setActiveComparedNames({
-                    name1: items[0].name,
-                    name2: items[1].name,
-                    priceString: items[0].priceSummary,
-                  });
-                }
-              }}
-            />
-          </Suspense>
+          <ComparisonPage
+            initialCategory={comparisonCategory}
+            initialPair={initialComparePair}
+            onBackToHome={() => handleBackToHome()}
+            onShowToast={showToast}
+            onActiveComparisonChange={(items: DeepComparisonItem[]) => {
+              if (items.length >= 2) {
+                setActiveComparedNames({
+                  name1: items[0].name,
+                  name2: items[1].name,
+                  priceString: items[0].priceSummary,
+                });
+              }
+            }}
+          />
         </main>
       ) : (
         /* Primary Homepage Content Container — STRICT 4-SECTION ORDER */
@@ -731,19 +735,9 @@ export default function App() {
           />
 
           {/* 2. Sleek Comparison Hero Launch Card (#compareSection) */}
-          <Suspense
-            fallback={
-              <div className="glass-card rounded-2xl p-8 text-center border border-cyan-500/25">
-                <div className="text-slate-900 dark:text-white font-extrabold text-sm">
-                  Loading Comparison Card...
-                </div>
-              </div>
-            }
-          >
-            <CompareSection
-              onLaunchComparison={(cat) => handleOpenComparePage(cat)}
-            />
-          </Suspense>
+          <CompareSection
+            onLaunchComparison={(cat) => handleOpenComparePage(cat)}
+          />
 
           {/* 3. Smart Link Shortener (#linkMakerSection — Affiliate Logic 100% Untouched) */}
           <LinkMakerSection
@@ -781,44 +775,40 @@ export default function App() {
         onOpenCompare={() => handleOpenComparePage()}
       />
 
-      {/* Lazy Loaded Modals */}
-      <Suspense fallback={null}>
-        {selectedArticle && (
-          <NewsModal
-            article={selectedArticle}
-            initialReportOpen={initialReportOpen}
-            isFavorited={favoriteIds.has(selectedArticle.id)}
-            onToggleFavorite={handleToggleFavoriteArticle}
-            onClose={() => {
-              setSelectedArticle(null);
-              setInitialReportOpen(false);
-            }}
-            onShowToast={showToast}
-          />
-        )}
-      </Suspense>
+      {/* Modals */}
+      {selectedArticle && (
+        <NewsModal
+          article={selectedArticle}
+          initialReportOpen={initialReportOpen}
+          isFavorited={favoriteIds.has(selectedArticle.id)}
+          onToggleFavorite={handleToggleFavoriteArticle}
+          onClose={() => {
+            setSelectedArticle(null);
+            setInitialReportOpen(false);
+          }}
+          onShowToast={showToast}
+        />
+      )}
 
-      <Suspense fallback={null}>
-        {contactModalOpen && (
-          <ContactModal
-            isOpen={contactModalOpen}
-            onClose={() => setContactModalOpen(false)}
-            onShowToast={showToast}
-          />
-        )}
+      {contactModalOpen && (
+        <ContactModal
+          isOpen={contactModalOpen}
+          onClose={() => setContactModalOpen(false)}
+          onShowToast={showToast}
+        />
+      )}
 
-        {legalModalOpen && (
-          <LegalModal
-            isOpen={legalModalOpen}
-            initialTab={legalModalTab}
-            onClose={() => setLegalModalOpen(false)}
-            onOpenContact={() => {
-              setLegalModalOpen(false);
-              setContactModalOpen(true);
-            }}
-          />
-        )}
-      </Suspense>
+      {legalModalOpen && (
+        <LegalModal
+          isOpen={legalModalOpen}
+          initialTab={legalModalTab}
+          onClose={() => setLegalModalOpen(false)}
+          onOpenContact={() => {
+            setLegalModalOpen(false);
+            setContactModalOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 }

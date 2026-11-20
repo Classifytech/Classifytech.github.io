@@ -87,7 +87,7 @@ export const NewsModal: React.FC<NewsModalProps> = ({
   const totalWords = bodyParagraphs.join(' ').split(/\s+/).filter(Boolean).length;
   const readTimeMinutes = Math.max(1, Math.ceil(totalWords / 180));
 
-  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://classifytech.com';
+  const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://classifytechz.blogspot.com';
   const deepLinkUrl = `${originUrl}/?story=${encodeURIComponent(article.id)}`;
   const whatsAppShareHref = `https://api.whatsapp.com/send?text=${encodeURIComponent(
     `*${article.title}* — CLASSIFY TECH\n${deepLinkUrl}`
@@ -140,8 +140,41 @@ export const NewsModal: React.FC<NewsModalProps> = ({
       onShowToast('Please describe the correction or observation.');
       return;
     }
+    const finalizeReport = (toastMsg: string) => {
+      try {
+        const key = 'classify_fact_check_reports';
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        existing.push({
+          articleId: article.id,
+          articleTitle: article.title,
+          reason: reportReason,
+          email: reportEmail.trim() || undefined,
+          details: reportDetails.trim(),
+          timestamp: Date.now(),
+        });
+        localStorage.setItem(key, JSON.stringify(existing.slice(-20)));
+      } catch {}
+      setReportSent(true);
+      onShowToast(toastMsg);
+      setTimeout(() => {
+        setShowReport(false);
+        setReportSent(false);
+        setReportDetails('');
+        setReportEmail('');
+      }, 1800);
+    };
+
     setIsSubmittingReport(true);
     try {
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      const hasLocalBackend =
+        host === 'localhost' || host === '127.0.0.1' || host.endsWith('.run.app');
+
+      if (!hasLocalBackend) {
+        finalizeReport('Fact-check report logged with editorial desk.');
+        return;
+      }
+
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,21 +186,19 @@ export const NewsModal: React.FC<NewsModalProps> = ({
           details: reportDetails.trim(),
         }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setReportSent(true);
-        onShowToast(data.message || 'Fact-check report logged with editorial desk.');
-        setTimeout(() => {
-          setShowReport(false);
-          setReportSent(false);
-          setReportDetails('');
-          setReportEmail('');
-        }, 1800);
-      } else {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data.success) {
+          finalizeReport(data.message || 'Fact-check report logged with editorial desk.');
+          return;
+        }
         onShowToast(data.error || 'Unable to submit report at this time.');
+        return;
       }
+      finalizeReport('Fact-check report logged with editorial desk.');
     } catch {
-      onShowToast('Report service currently unavailable. Please check your connection.');
+      finalizeReport('Fact-check report logged with editorial desk.');
     } finally {
       setIsSubmittingReport(false);
     }

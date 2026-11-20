@@ -10,6 +10,7 @@ interface BlurUpImageProps {
   containerClassName?: string;
   loading?: 'lazy' | 'eager';
   decoding?: 'async' | 'sync' | 'auto';
+  fetchPriority?: 'high' | 'low' | 'auto';
 }
 
 /**
@@ -25,6 +26,7 @@ export const BlurUpImage: React.FC<BlurUpImageProps> = ({
   containerClassName = '',
   loading = 'lazy',
   decoding = 'async',
+  fetchPriority,
 }) => {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -85,13 +87,14 @@ export const BlurUpImage: React.FC<BlurUpImageProps> = ({
         />
       )}
 
-      {/* Primary Lazy-Loaded Thumbnail */}
+      {/* Primary Image */}
       <img
         ref={imgRef}
         src={src}
         alt={alt}
         loading={loading}
         decoding={decoding}
+        fetchPriority={fetchPriority}
         referrerPolicy="no-referrer"
         onLoad={handleLoad}
         onError={handleError}

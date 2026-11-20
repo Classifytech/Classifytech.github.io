@@ -244,12 +244,12 @@ async function startServer() {
 
     const isDev = process.env.NODE_ENV !== 'production';
     const scriptSrc = isDev
-      ? "'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com"
-      : "'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com";
+      ? "'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com https://*.adtrafficquality.google https://*.doubleclick.net"
+      : "'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://tpc.googlesyndication.com https://*.adtrafficquality.google https://*.doubleclick.net";
 
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://classifytech.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://api.rss2json.com https://api.allorigins.win https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
+      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://classifytech.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.adtrafficquality.google https://*.doubleclick.net https://api.rss2json.com https://api.allorigins.win https://api.codetabs.com https://api.mymemory.translated.net https://translate.googleapis.com https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://www.google.com https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
     );
     next();
   });
@@ -1392,10 +1392,7 @@ async function startServer() {
   });
 
   // 3. Ghost Post SPA route handler for /s/:code and /post/:id
-  // Serves the CLASSIFY TECH SPA so browser renders <article data-post-id="...">, sets URL to /post/:id,
-  // and executes the client-side JavaScript redirect to ensure Amazon/Flipkart/Myntra see official post Referer.
   app.get(['/s/:code', '/post/:id'], (req: Request, res: Response, next: NextFunction) => {
-    // Return JSON if caller explicitly asks for JSON application/json (e.g. API clients)
     if (req.headers.accept && req.headers.accept.includes('application/json') && !req.headers.accept.includes('text/html')) {
       const rawCode = req.params.code || (req.params.id ? req.params.id.replace(/^post-/, '') : '');
       const queryStr = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
@@ -1416,7 +1413,36 @@ async function startServer() {
     res.status(200).send('google-site-verification: google239ae2d0e50d07f1.html');
   });
 
-  // Mount Vite in dev or static files in production
+  // Ensure standalone Blogger theme XML exists cleanly without affecting Vite index.html
+  const rootBloggerXmlPath = path.resolve(__dirname, 'blogger-theme.xml');
+  const publicBloggerXmlPath = path.resolve(__dirname, 'public/blogger-theme.xml');
+  const needsBloggerXmlBuild =
+    !fs.existsSync(rootBloggerXmlPath) ||
+    !fs.existsSync(publicBloggerXmlPath) ||
+    fs.statSync(rootBloggerXmlPath).size < 10000;
+  if (needsBloggerXmlBuild) {
+    try {
+      const { execFileSync } = await import('node:child_process');
+      execFileSync(process.execPath, [path.resolve(__dirname, 'scripts/build-blogger-theme.mjs')], {
+        cwd: __dirname,
+        env: { ...process.env, NODE_ENV: 'production' },
+        stdio: 'inherit',
+      });
+    } catch (buildErr) {
+      console.error('Failed to auto-build blogger-theme.xml on startup:', buildErr);
+    }
+  }
+
+  // Direct XML route for standalone Blogger theme (no UI buttons added)
+  app.get('/blogger-theme.xml', (req: Request, res: Response) => {
+    const xmlFile = fs.existsSync(publicBloggerXmlPath) ? publicBloggerXmlPath : rootBloggerXmlPath;
+    if (req.query.download === '1' || req.query.download === 'true') {
+      res.setHeader('Content-Disposition', 'attachment; filename="blogger-theme.xml"');
+    }
+    res.type('application/xml; charset=utf-8').sendFile(xmlFile);
+  });
+
+  // Mount Vite in dev (AI Studio preview) or static dist/ in production (GitHub/Node deployment)
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');

@@ -345,7 +345,7 @@ export const ComparisonPage: React.FC<ComparisonPageProps> = ({
       .slice(0, 2)
       .join('-vs-');
     const origin =
-      typeof window !== 'undefined' ? window.location.origin : 'https://classifytech.com';
+      typeof window !== 'undefined' ? window.location.origin : 'https://classifytechz.blogspot.com';
     const shareUrl = `${origin}/?compare=${encodeURIComponent(namesSlug)}#/comparison`;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {

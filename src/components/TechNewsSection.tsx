@@ -131,6 +131,8 @@ export const TechNewsSection: React.FC<TechNewsSectionProps> = ({
                 alt={heroArticle.title}
                 category={heroArticle.category}
                 loading="eager"
+                decoding="async"
+                fetchPriority="high"
                 className="group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />

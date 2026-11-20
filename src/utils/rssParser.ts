@@ -1134,7 +1134,8 @@ export async function fetchFeedWithCorsFallback(
 
   // 3. Fallback: api.codetabs.com/v1/proxy?quest=
   try {
-    const codeTabsUrl = `${CODETABS_PROXY_BASE}${encodeURIComponent(feed.rssUrl)}`;
+    const bustSep = feed.rssUrl.includes('?') ? '&' : '?';
+    const codeTabsUrl = `${CODETABS_PROXY_BASE}${encodeURIComponent(`${feed.rssUrl}${bustSep}_cb=${cb}`)}`;
     const res = await fetchImpl(codeTabsUrl);
     if (res.ok) {
       const xmlText = await res.text();
@@ -1153,7 +1154,8 @@ export async function fetchFeedWithCorsFallback(
 }
 
 export const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000; // Kept at 15m for unit test compatibility
-export const BACKGROUND_SYNC_INTERVAL_MS = 3 * 60 * 1000; // 3 Minutes silent background sync
+export const HOURLY_SYNC_INTERVAL_MS = 60 * 60 * 1000; // Strict 60-minute (3,600,000 ms) hourly freshness sync
+export const BACKGROUND_SYNC_INTERVAL_MS = HOURLY_SYNC_INTERVAL_MS;
 
 export interface GlobalTrendingNewsResult {
   articles: TechArticle[];
@@ -1174,7 +1176,7 @@ export async function fetchGlobalTrendingNews(options?: {
 }): Promise<GlobalTrendingNewsResult> {
   const fetchImpl = options?.fetchFn ?? fetch;
   const limit = Math.min(Math.max(6, options?.limit ?? 60), 60);
-  const cb = Math.floor(Date.now() / 180000);
+  const cb = Date.now();
   const endpoint =
     options?.apiEndpoint ||
     `/api/news/rss?${options?.refresh ? 'refresh=true&' : ''}_cb=${cb}`;
@@ -1183,18 +1185,28 @@ export async function fetchGlobalTrendingNews(options?: {
   const freshArticles: TechArticle[] = [];
   let resolvedSource: 'live-api' | 'rss-syndication' | 'curated-fallback' = 'curated-fallback';
 
-  // 1. Primary API / Backend RSS Syndication Hook
-  try {
-    const res = await fetchImpl(endpoint, { headers: { Accept: 'application/json' } });
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json?.articles) && json.articles.length > 0) {
-        freshArticles.push(...json.articles);
-        resolvedSource = 'live-api';
+  // 1. Primary API / Backend RSS Syndication Hook (only when local/preview API or custom endpoint/fetchFn is active)
+  const shouldTryBackendApi =
+    Boolean(options?.apiEndpoint) ||
+    Boolean(options?.fetchFn) ||
+    (typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname.endsWith('.run.app')));
+
+  if (shouldTryBackendApi) {
+    try {
+      const res = await fetchImpl(endpoint, { headers: { Accept: 'application/json' } });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.articles) && json.articles.length > 0) {
+          freshArticles.push(...json.articles);
+          resolvedSource = 'live-api';
+        }
       }
+    } catch {
+      // Proceed to direct client RSS syndication fallback
     }
-  } catch {
-    // Proceed to direct client RSS syndication fallback
   }
 
   // 2. Direct Client Multi-Feed Syndication Fallback
