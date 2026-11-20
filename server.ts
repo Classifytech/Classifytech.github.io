@@ -1413,35 +1413,6 @@ async function startServer() {
     res.status(200).send('google-site-verification: google239ae2d0e50d07f1.html');
   });
 
-  // Ensure standalone Blogger theme XML exists cleanly without affecting Vite index.html
-  const rootBloggerXmlPath = path.resolve(__dirname, 'blogger-theme.xml');
-  const publicBloggerXmlPath = path.resolve(__dirname, 'public/blogger-theme.xml');
-  const needsBloggerXmlBuild =
-    !fs.existsSync(rootBloggerXmlPath) ||
-    !fs.existsSync(publicBloggerXmlPath) ||
-    fs.statSync(rootBloggerXmlPath).size < 10000;
-  if (needsBloggerXmlBuild) {
-    try {
-      const { execFileSync } = await import('node:child_process');
-      execFileSync(process.execPath, [path.resolve(__dirname, 'scripts/build-blogger-theme.mjs')], {
-        cwd: __dirname,
-        env: { ...process.env, NODE_ENV: 'production' },
-        stdio: 'inherit',
-      });
-    } catch (buildErr) {
-      console.error('Failed to auto-build blogger-theme.xml on startup:', buildErr);
-    }
-  }
-
-  // Direct XML route for standalone Blogger theme (no UI buttons added)
-  app.get('/blogger-theme.xml', (req: Request, res: Response) => {
-    const xmlFile = fs.existsSync(publicBloggerXmlPath) ? publicBloggerXmlPath : rootBloggerXmlPath;
-    if (req.query.download === '1' || req.query.download === 'true') {
-      res.setHeader('Content-Disposition', 'attachment; filename="blogger-theme.xml"');
-    }
-    res.type('application/xml; charset=utf-8').sendFile(xmlFile);
-  });
-
   // Mount Vite in dev (AI Studio preview) or static dist/ in production (GitHub/Node deployment)
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) {
