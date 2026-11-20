@@ -5,6 +5,8 @@
  * and deterministic featured cards when offline or throttled.
  */
 
+import { API_BASE } from './apiBase.ts';
+
 export const YOUTUBE_CHANNEL_ID = 'UCp0jHiCTqxDYZ0Bi0sKUmbw';
 export const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/channel/UCp0jHiCTqxDYZ0Bi0sKUmbw';
 
@@ -424,7 +426,7 @@ export async function fetchGlobalTechYouTubeVideos(options?: {
 
   // 1. Try CORS-free server-side YouTube XML aggregator (/api/youtube/global) first when available
   try {
-    const serverRes = await fetchImpl('/api/youtube/global', {
+    const serverRes = await fetchImpl(`${API_BASE}/api/youtube/global`, {
       headers: { Accept: 'application/json' },
     });
     if (serverRes.ok) {

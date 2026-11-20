@@ -8,6 +8,8 @@
  * - Myntra (myntra.com, myntr.it, myntr.in)
  */
 
+import { API_BASE } from './apiBase.ts';
+
 export const WORKER_URL = 'https://classify.classifytechz.workers.dev';
 
 export const WORKER_URLS = [
@@ -490,7 +492,7 @@ export async function resolveShortLink(
 
   // 2. Fallback: Local Express server proxy (`/api/resolve/:code`)
   try {
-    const proxyRes = await fetch(`/api/resolve/${encodeURIComponent(cleanCode)}${searchQuery}`, {
+    const proxyRes = await fetch(`${API_BASE}/api/resolve/${encodeURIComponent(cleanCode)}${searchQuery}`, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(6000),
     });
@@ -600,7 +602,7 @@ export async function shortenUrlWithWorker(
   // Fallback to local backend proxy `/api/shorten` if direct client fetch failed
   if (!workerStep1 || !workerStep1.affiliateUrl) {
     try {
-      const proxyRes = await fetch('/api/shorten', {
+      const proxyRes = await fetch(`${API_BASE}/api/shorten`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -689,7 +691,7 @@ export async function shortenUrlWithWorker(
     });
   } catch {
     // Non-fatal: localStorage backup is already saved; attempt background server sync silently
-    fetch('/api/shorten/kv-sync', {
+    fetch(`${API_BASE}/api/shorten/kv-sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

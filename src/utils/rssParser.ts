@@ -1,4 +1,5 @@
 import type { TechArticle } from '../data/newsData.ts';
+import { API_BASE } from './apiBase.ts';
 
 export interface Rss2JsonItem {
   title: string;
@@ -1245,20 +1246,22 @@ export async function fetchGlobalTrendingNews(options?: {
   const cb = Date.now();
   const endpoint =
     options?.apiEndpoint ||
-    `/api/news/rss?${options?.refresh ? 'refresh=true&' : ''}_cb=${cb}`;
+    `${API_BASE}/api/news/rss?${options?.refresh ? 'refresh=true&' : ''}_cb=${cb}`;
 
   const { defaultTechArticles } = await import('../data/newsData.ts');
   const freshArticles: TechArticle[] = [];
   let resolvedSource: 'live-api' | 'rss-syndication' | 'curated-fallback' = 'curated-fallback';
 
-  // 1. Primary API / Backend RSS Syndication Hook (only when local/preview API or custom endpoint/fetchFn is active)
+  // 1. Primary API / Backend RSS Syndication Hook (only when local/preview/Cloud Run API or custom endpoint/fetchFn is active)
   const shouldTryBackendApi =
     Boolean(options?.apiEndpoint) ||
     Boolean(options?.fetchFn) ||
+    Boolean(API_BASE) ||
     (typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||
-        window.location.hostname.endsWith('.run.app')));
+        window.location.hostname.endsWith('.run.app') ||
+        window.location.hostname.endsWith('.ai.studio')));
 
   if (shouldTryBackendApi) {
     try {

@@ -123,6 +123,28 @@ async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
 
+  // CORS Middleware for native Blogger frontend + local dev
+  const ALLOWED_CORS_ORIGINS = new Set([
+    'https://classifytechz.blogspot.com',
+    'http://localhost:3000',
+  ]);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_CORS_ORIGINS.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+    }
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    if (req.path.startsWith('/assets/')) {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+    next();
+  });
+
   // Security Headers & Payload Size Limits
   app.use(express.json({ limit: '50kb' }));
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -1003,6 +1025,14 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, 'dist');
+    app.use(
+      '/assets',
+      express.static(path.resolve(distPath, 'assets'), {
+        setHeaders: (res) => {
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        },
+      })
+    );
     app.use(express.static(distPath));
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.resolve(distPath, 'index.html'));

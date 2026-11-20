@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TechArticle, formatCleanCategoryBadge } from '../data/newsData.ts';
 import { shareArticle } from '../utils/shareUtils.ts';
 import { handleImageFallback } from '../utils/imageFallback.ts';
+import { API_BASE } from '../utils/apiBase.ts';
 import { X, Clock, Flag, CheckCircle2, Send, Heart, Share2, Copy, Check, ExternalLink, Sparkles } from 'lucide-react';
 
 interface NewsModalProps {
@@ -167,15 +168,19 @@ export const NewsModal: React.FC<NewsModalProps> = ({
     setIsSubmittingReport(true);
     try {
       const host = typeof window !== 'undefined' ? window.location.hostname : '';
-      const hasLocalBackend =
-        host === 'localhost' || host === '127.0.0.1' || host.endsWith('.run.app');
+      const hasBackend =
+        Boolean(API_BASE) ||
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.endsWith('.run.app') ||
+        host.endsWith('.ai.studio');
 
-      if (!hasLocalBackend) {
+      if (!hasBackend) {
         finalizeReport('Fact-check report logged with editorial desk.');
         return;
       }
 
-      const res = await fetch('/api/report', {
+      const res = await fetch(`${API_BASE}/api/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Send, CheckCircle2, X, MessageSquare, ShieldCheck, Clock, User, AtSign, HelpCircle } from 'lucide-react';
+import { API_BASE } from '../utils/apiBase.ts';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -70,10 +71,14 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
     setIsSubmitting(true);
     try {
       const host = typeof window !== 'undefined' ? window.location.hostname : '';
-      const hasLocalBackend =
-        host === 'localhost' || host === '127.0.0.1' || host.endsWith('.run.app');
+      const hasBackend =
+        Boolean(API_BASE) ||
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.endsWith('.run.app') ||
+        host.endsWith('.ai.studio');
 
-      if (!hasLocalBackend) {
+      if (!hasBackend) {
         completeClientSubmission(
           'Your inquiry has been logged for the CLASSIFY TECH editorial desk. For fastest direct reply, you can also email Classifytechz@gmail.com.',
           'Inquiry recorded successfully!'
@@ -81,7 +86,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, onS
         return;
       }
 
-      const response = await fetch('/api/contact', {
+      const response = await fetch(`${API_BASE}/api/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

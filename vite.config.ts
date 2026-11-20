@@ -21,14 +21,12 @@ export default defineConfig(() => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks(id) {
-            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
-              return 'vendor-react';
-            }
-            if (id.includes('node_modules/lucide-react/')) {
-              return 'vendor-icons';
-            }
-          },
+          entryFileNames: 'assets/classifytech.js',
+          assetFileNames: (assetInfo) =>
+            assetInfo.name?.endsWith('.css') || assetInfo.names?.some((n) => n.endsWith('.css'))
+              ? 'assets/classifytech.css'
+              : 'assets/[name][extname]',
+          inlineDynamicImports: true,
         },
       },
       chunkSizeWarningLimit: 800,

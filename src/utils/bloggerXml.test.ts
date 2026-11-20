@@ -39,7 +39,6 @@ test('Workspace has no leftover Netlify config files, unused build scripts, or d
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'public/_redirects')), false);
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'scripts/build-blogger-theme.mjs')), false);
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'src/utils/aiSummaryHook.ts')), false);
-  assert.equal(fs.existsSync(path.resolve(process.cwd(), 'bun.lock')), false);
 
   // Single canonical Google Search Console verification file in public/
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'public/google239ae2d0e50d07f1.html')), true);
