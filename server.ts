@@ -4,7 +4,6 @@ import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { isPrivateOrProhibitedHost } from './src/utils/security.ts';
 import {
   isSupportedRetailerUrl,
   generateShortCode,
@@ -22,6 +21,7 @@ import {
   ALL_SYNDICATION_FEEDS,
   ALLORIGINS_PROXY_BASE,
   CODETABS_PROXY_BASE,
+  MAX_SLIDING_WINDOW_ARTICLES,
   parseRawXmlToRssItems,
   transformRssItemToArticle,
   containsChineseOrForeignScript,
@@ -34,35 +34,40 @@ import { defaultTechArticles, type TechArticle } from './src/data/newsData.ts';
 import { DEFAULT_YOUTUBE_TECH_VIDEOS } from './src/utils/youtubeApi.ts';
 import {
   synthesizeWithDeterministicFallback,
-  synthesizeOriginalTechArticle,
   getAvailableGeminiKeys,
 } from './src/utils/aiSynthesizer.ts';
-import {
-  findBuiltInPhoneSpecs,
-  generateDeterministicPhoneSpecs,
-  isValidPhoneQuery,
-} from './src/utils/phoneComparator.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 3000;
-const CONTACT_FILE = path.resolve(__dirname, 'src/data/contact_submissions.json');
-const REPORTS_FILE = path.resolve(__dirname, 'src/data/news_reports.json');
-const ADMIN_NEWS_FILE = path.resolve(__dirname, 'src/data/admin_news.json');
-const ADMIN_PHONES_FILE = path.resolve(__dirname, 'src/data/admin_phones.json');
+const MAX_IN_MEMORY_RECORDS = 25;
 
-// In-Memory Rate Limiting Tracker
+// In-Memory Rate Limiting Tracker with automatic expiry pruning
 interface RateLimitRecord {
   count: number;
   resetAt: number;
 }
 const rateLimits = new Map<string, RateLimitRecord>();
 
+function pruneExpiredRateLimits(now = Date.now()): void {
+  for (const [key, record] of rateLimits.entries()) {
+    if (now > record.resetAt) {
+      rateLimits.delete(key);
+    }
+  }
+}
+
+const rateLimitCleanupInterval = setInterval(() => {
+  pruneExpiredRateLimits();
+}, 5 * 60 * 1000);
+rateLimitCleanupInterval.unref();
+
 function isRateLimited(key: string, maxRequests: number, windowMs: number): boolean {
   const now = Date.now();
   const record = rateLimits.get(key);
   if (!record || now > record.resetAt) {
+    if (record) rateLimits.delete(key);
     rateLimits.set(key, { count: 1, resetAt: now + windowMs });
     return false;
   }
@@ -78,131 +83,41 @@ function getClientIp(req: Request): string {
   return req.ip || req.socket.remoteAddress || '127.0.0.1';
 }
 
-// -------------------------------------------------------------
-// REAL GEMINI 2.5 FLASH + DETERMINISTIC FALLBACK SYNTHESIS (SERVER-SIDE)
-// Uses configured Gemini keys with 6-hour caching & key rotation,
-// or falls back seamlessly to deterministic editorial synthesis.
-// -------------------------------------------------------------
-async function generateSynthesizedArticleServer(
-  rawTitle: string,
-  rawContent: string,
-  sourceName = 'Official Technical Release',
-  sourceUrl = ''
-) {
-  return synthesizeOriginalTechArticle(rawTitle, rawContent, sourceName, sourceUrl);
+// Rolling capped in-memory buffers (never accumulate unbounded data on disk)
+interface ContactSubmissionEntry {
+  name: string;
+  email: string;
+  category: string;
+  message: string;
+  timestamp: number;
+}
+interface NewsReportEntry {
+  articleId: string;
+  articleTitle: string;
+  reason: string;
+  email?: string;
+  details: string;
+  timestamp: number;
 }
 
-// Save contact submission safely with atomic write
-function saveContactSubmission(entry: { name: string; email: string; category: string; message: string; timestamp: number }): boolean {
-  try {
-    const dir = path.dirname(CONTACT_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    let existing: any[] = [];
-    if (fs.existsSync(CONTACT_FILE)) {
-      existing = JSON.parse(fs.readFileSync(CONTACT_FILE, 'utf-8'));
-    }
-    existing.push(entry);
-    const tempFile = `${CONTACT_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(existing, null, 2), 'utf-8');
-    fs.renameSync(tempFile, CONTACT_FILE);
-    return true;
-  } catch (err) {
-    console.error('Failed to save contact submission:', err);
-    return false;
+const recentContactSubmissions: ContactSubmissionEntry[] = [];
+const recentNewsReports: NewsReportEntry[] = [];
+
+function saveContactSubmission(entry: ContactSubmissionEntry): boolean {
+  recentContactSubmissions.unshift(entry);
+  if (recentContactSubmissions.length > MAX_IN_MEMORY_RECORDS) {
+    recentContactSubmissions.length = MAX_IN_MEMORY_RECORDS;
   }
+  return true;
 }
 
-// Save news report safely with atomic write
-function saveNewsReport(entry: { articleId: string; articleTitle: string; reason: string; email?: string; details: string; timestamp: number }): boolean {
-  try {
-    const dir = path.dirname(REPORTS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    let existing: any[] = [];
-    if (fs.existsSync(REPORTS_FILE)) {
-      existing = JSON.parse(fs.readFileSync(REPORTS_FILE, 'utf-8'));
-    }
-    existing.push(entry);
-    const tempFile = `${REPORTS_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(existing, null, 2), 'utf-8');
-    fs.renameSync(tempFile, REPORTS_FILE);
-    return true;
-  } catch (err) {
-    console.error('Failed to save news report:', err);
-    return false;
+function saveNewsReport(entry: NewsReportEntry): boolean {
+  recentNewsReports.unshift(entry);
+  if (recentNewsReports.length > MAX_IN_MEMORY_RECORDS) {
+    recentNewsReports.length = MAX_IN_MEMORY_RECORDS;
   }
+  return true;
 }
-
-function loadAdminNews(): any[] {
-  try {
-    if (fs.existsSync(ADMIN_NEWS_FILE)) {
-      return JSON.parse(fs.readFileSync(ADMIN_NEWS_FILE, 'utf-8'));
-    }
-  } catch (err) {
-    console.error('Failed to load admin news file:', err);
-  }
-  return [];
-}
-
-function saveAdminNews(articles: any[]): boolean {
-  try {
-    const dir = path.dirname(ADMIN_NEWS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const tempFile = `${ADMIN_NEWS_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(articles, null, 2), 'utf-8');
-    fs.renameSync(tempFile, ADMIN_NEWS_FILE);
-    return true;
-  } catch (err) {
-    console.error('Failed to save admin news file:', err);
-    return false;
-  }
-}
-
-function loadAdminPhones(): Record<string, any> {
-  try {
-    if (fs.existsSync(ADMIN_PHONES_FILE)) {
-      return JSON.parse(fs.readFileSync(ADMIN_PHONES_FILE, 'utf-8'));
-    }
-  } catch (err) {
-    console.error('Failed to load admin phones file:', err);
-  }
-  return {};
-}
-
-function saveAdminPhones(phones: Record<string, any>): boolean {
-  try {
-    const dir = path.dirname(ADMIN_PHONES_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const tempFile = `${ADMIN_PHONES_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(phones, null, 2), 'utf-8');
-    fs.renameSync(tempFile, ADMIN_PHONES_FILE);
-    return true;
-  } catch (err) {
-    console.error('Failed to save admin phones file:', err);
-    return false;
-  }
-}
-
-const ALLOWED_ARTICLE_DOMAINS = [
-  'smartprix.com',
-  'www.smartprix.com',
-  'gsmarena.com',
-  'www.gsmarena.com',
-  'androidauthority.com',
-  'www.androidauthority.com',
-  'gadgets360.com',
-  'www.gadgets360.com',
-  '9to5google.com',
-  'www.9to5google.com',
-  'theverge.com',
-  'www.theverge.com',
-  'feeds.feedburner.com',
-  'api.rss2json.com',
-  'api.allorigins.win',
-];
 
 async function startServer() {
   const app = express();
@@ -249,7 +164,7 @@ async function startServer() {
 
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://classifytech.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.adtrafficquality.google https://*.doubleclick.net https://api.rss2json.com https://api.allorigins.win https://api.codetabs.com https://api.mymemory.translated.net https://translate.googleapis.com https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com https: ws: wss:; frame-src 'self' https://www.google.com https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
+      `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://classify.classifytechz.workers.dev https://classifytech.classifytechz.workers.dev https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.adtrafficquality.google https://*.doubleclick.net https://csi.gstatic.com https://api.rss2json.com https://api.allorigins.win https://api.codetabs.com https://api.mymemory.translated.net https://translate.googleapis.com https://en.wikipedia.org https://www.wikidata.org https://*.smartprix.com https://*.gsmarena.com https://*.androidauthority.com https://*.gadgets360.com https://*.9to5google.com https://*.theverge.com https://feeds.feedburner.com ws: wss:; frame-src 'self' https://www.google.com https://googleads.g.doubleclick.net https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://tpc.googlesyndication.com; frame-ancestors 'self' https://*.google.com https://*.google.dev https://*.aistudio.google.com https://aistudio.google.com https://*.run.app; form-action 'self';`
     );
     next();
   });
@@ -284,15 +199,6 @@ async function startServer() {
     } else {
       res.type('text/plain').send('# Google AdSense Authorized Digital Sellers\n');
     }
-  });
-
-  // Public Content Fetch Endpoint (Serves Custom Articles & Phone Database)
-  app.get('/api/content', (_req: Request, res: Response) => {
-    return res.json({
-      success: true,
-      customNews: loadAdminNews(),
-      customPhones: loadAdminPhones(),
-    });
   });
 
   // Contact Submission Endpoint with Persistent Storage & Anti-Spam Rate Limiting
@@ -399,125 +305,8 @@ async function startServer() {
   // API: Live RSS News Syndication (1,000+ Global & China Leak Network + Rotating Background Worker)
   let newsCache: { timestamp: number; articles: TechArticle[] } | null = null;
   const NEWS_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
-  const MAX_SLIDING_WINDOW_ARTICLES = 60;
   let rotationCursor = 0;
   let isBackgroundRotationRunning = false;
-
-  // In-memory cache for full untruncated article content (1 hour TTL)
-  const articleFullCache = new Map<string, { timestamp: number; paragraphs: string[]; lead?: string }>();
-
-  async function extractFullArticleFromWeb(url: string): Promise<{ paragraphs: string[]; lead?: string } | null> {
-    try {
-      const cached = articleFullCache.get(url);
-      if (cached && Date.now() - cached.timestamp < 60 * 60 * 1000) {
-        return cached;
-      }
-
-      const parsedUrl = new URL(url);
-      if (parsedUrl.protocol !== 'https:') return null;
-      if (!ALLOWED_ARTICLE_DOMAINS.includes(parsedUrl.hostname)) return null;
-      if (isPrivateOrProhibitedHost(parsedUrl.hostname)) return null;
-
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
-        redirect: 'manual',
-        signal: AbortSignal.timeout(5000),
-      });
-
-      if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get('location');
-        if (location) {
-          const nextUrl = new URL(location, url).toString();
-          const nextParsed = new URL(nextUrl);
-          if (
-            nextParsed.protocol === 'https:' &&
-            ALLOWED_ARTICLE_DOMAINS.includes(nextParsed.hostname) &&
-            !isPrivateOrProhibitedHost(nextParsed.hostname)
-          ) {
-            return extractFullArticleFromWeb(nextUrl);
-          }
-        }
-        return null;
-      }
-
-      if (!res.ok) return null;
-
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('text/html')) return null;
-
-      const contentLength = parseInt(res.headers.get('content-length') || '0', 10);
-      if (contentLength > 1024 * 1024) return null;
-
-      const html = await res.text();
-      if (html.length > 1024 * 1024) return null;
-
-      let container = '';
-      if (url.includes('smartprix.com')) {
-        const m = html.match(/<div[^>]*class=["'][^"']*(?:entry-content|post-content|article-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-        if (m) container = m[1];
-      } else if (url.includes('gsmarena.com')) {
-        const m = html.match(/<div[^>]*id=["']review-body["'][^>]*>([\s\S]*?)<\/div>/i);
-        if (m) container = m[1];
-      } else if (url.includes('theverge.com')) {
-        const m = html.match(/<div[^>]*class=["'][^"']*c-entry-content[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-        if (m) container = m[1];
-      } else if (url.includes('9to5google.com')) {
-        const m = html.match(/<div[^>]*class=["'][^"']*(?:post-content|entry-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-        if (m) container = m[1];
-      } else if (url.includes('androidauthority.com')) {
-        const m = html.match(/<div[^>]*class=["'][^"']*(?:article-content|post-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-        if (m) container = m[1];
-      } else if (url.includes('gadgets360.com')) {
-        const m = html.match(/<div[^>]*class=["'][^"']*(?:content_text|story__detail)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-        if (m) container = m[1];
-      }
-
-      if (!container) {
-        const art = html.match(/<article[\s\S]*?<\/article>/i);
-        if (art) container = art[0];
-        else {
-          const main = html.match(/<main[\s\S]*?<\/main>/i);
-          if (main) container = main[0];
-          else container = html;
-        }
-      }
-
-      const pMatches = container.match(/<p\b[^>]*>([\s\S]*?)<\/p>/gi) || [];
-      const paragraphs: string[] = [];
-      const seen = new Set<string>();
-
-      for (const p of pMatches) {
-        const clean = cleanHtmlText(p);
-        if (
-          clean.length > 35 &&
-          !clean.toLowerCase().startsWith('via') &&
-          !clean.toLowerCase().startsWith('source:') &&
-          !clean.toLowerCase().includes('cookie policy') &&
-          !clean.toLowerCase().includes('all rights reserved') &&
-          !clean.toLowerCase().includes('subscribe to our') &&
-          !seen.has(clean.toLowerCase())
-        ) {
-          seen.add(clean.toLowerCase());
-          paragraphs.push(clean);
-        }
-      }
-
-      if (paragraphs.length > 0) {
-        const result = {
-          paragraphs,
-          lead: paragraphs[0],
-        };
-        articleFullCache.set(url, { timestamp: Date.now(), ...result });
-        return result;
-      }
-    } catch {
-      // Network or parse error
-    }
-    return null;
-  }
 
   const NON_TECH_FINANCE_REGEX =
     /\b(bitcoin\s+trades|options\s+traders|crypto\s+price|dogecoin|ethereum\s+price|sensex|nifty\s+50|stock\s+market\s+today)\b/i;
@@ -669,7 +458,7 @@ async function startServer() {
   /**
    * Merges incoming live articles with existing articles, deduplicates by normalized title & URL,
    * sorts strictly newest-first (`b.publishedAtMs - a.publishedAtMs`), assigns `isHero = true` ONLY
-   * to index 0, and trims to the 60-article sliding window.
+   * to index 0, and trims to the strict 100-article FIFO sliding window.
    */
   function mergeAndSortLiveArticles(
     incoming: TechArticle[],
@@ -858,214 +647,6 @@ async function startServer() {
       });
     }
   });
-
-  // In-memory cache & in-flight promise map for detailed article synthesis (2 hours TTL)
-  const serverArticleSynthesisCache = new Map<string, { timestamp: number; data: any }>();
-  const inFlightArticleRequests = new Map<string, Promise<any>>();
-  const ARTICLE_SYNTHESIS_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
-
-  // Dedicated endpoint to fetch untruncated full article content on-demand with AI synthesis
-  app.get('/api/news/article', async (req: Request, res: Response) => {
-    try {
-      const targetUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
-      const rawTitle = typeof req.query.title === 'string' ? req.query.title.trim() : 'Tech Hardware Announcement';
-      const sourceName = typeof req.query.source === 'string' ? req.query.source.trim() : 'Technical Release';
-
-      if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
-        return res.status(400).json({ success: false, error: 'Valid URL parameter required' });
-      }
-
-      try {
-        const parsed = new URL(targetUrl);
-        if (isPrivateOrProhibitedHost(parsed.hostname)) {
-          return res.status(403).json({ success: false, error: 'Access to internal or prohibited host is denied.' });
-        }
-      } catch (e) {
-        return res.status(400).json({ success: false, error: 'Invalid URL format.' });
-      }
-
-      const cacheKey = `${rawTitle}_${targetUrl}`.toLowerCase().trim();
-      const cached = serverArticleSynthesisCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < ARTICLE_SYNTHESIS_CACHE_TTL_MS) {
-        return res.json({
-          success: true,
-          fromCache: true,
-          ...cached.data,
-        });
-      }
-
-      let synthesisPromise = inFlightArticleRequests.get(cacheKey);
-      if (!synthesisPromise) {
-        synthesisPromise = (async () => {
-          const extracted = await extractFullArticleFromWeb(targetUrl);
-          const sourceText = extracted && extracted.paragraphs.length > 0
-            ? extracted.paragraphs.join('\n\n')
-            : rawTitle;
-
-          const synthesized = await generateSynthesizedArticleServer(
-            rawTitle,
-            sourceText,
-            sourceName,
-            targetUrl
-          );
-
-          const payload = {
-            headline: synthesized.headline,
-            lead: synthesized.leadSummary,
-            paragraphs: synthesized.paragraphs,
-            bullets: synthesized.bullets,
-            sourceAttribution: synthesized.sourceAttribution,
-            count: synthesized.paragraphs.length,
-            isAiGenerated: synthesized.isAiGenerated,
-          };
-
-          serverArticleSynthesisCache.set(cacheKey, {
-            timestamp: Date.now(),
-            data: payload,
-          });
-
-          return payload;
-        })().finally(() => {
-          inFlightArticleRequests.delete(cacheKey);
-        });
-
-        inFlightArticleRequests.set(cacheKey, synthesisPromise);
-      }
-
-      const payload = await synthesisPromise;
-      return res.json({
-        success: true,
-        ...payload,
-      });
-    } catch (err) {
-      console.error('Error in /api/news/article:', err);
-      return res.status(500).json({ success: false, error: 'Failed to fetch article' });
-    }
-  });
-
-  // -------------------------------------------------------------
-  // ZERO-TOKEN SMARTPHONE SPECS COMPARATOR (/api/compare/specs)
-  // Resolves from built-in DB or deterministic hardware spec engine
-  // with strict 2-requests-per-hour rate limiting and 0 API token usage.
-  // -------------------------------------------------------------
-  interface CachedCompareEntry {
-    timestamp: number;
-    specs: Record<string, unknown>;
-  }
-  const compareSpecsCache = new Map<string, CachedCompareEntry>();
-  const COMPARE_CACHE_TTL_MS = 60 * 60 * 1000;
-
-  app.post('/api/compare/specs', async (req: Request, res: Response) => {
-    const rawName = typeof req.body?.deviceName === 'string' ? req.body.deviceName.trim() : '';
-    if (!isValidPhoneQuery(rawName)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please enter a valid smartphone model name.',
-      });
-    }
-
-    const cacheKey = rawName.toLowerCase();
-    const cached = compareSpecsCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < COMPARE_CACHE_TTL_MS) {
-      return res.json({ success: true, specs: cached.specs, cached: true });
-    }
-
-    const builtIn = findBuiltInPhoneSpecs(rawName);
-    if (builtIn) {
-      const payload = {
-        Name: builtIn.name,
-        Price: builtIn.price,
-        Processor: builtIn.cpu,
-        Fab: builtIn.nm,
-        AnTuTu: builtIn.antutu,
-        Geekbench: builtIn.geek,
-        Display: builtIn.display,
-        Protection: builtIn.build,
-        RAM: builtIn.ram,
-        RearCam: builtIn.cam_rear,
-        FrontCam: builtIn.cam_front,
-        Gaming: builtIn.gaming,
-        FiveG: builtIn.bands5g,
-        Connectivity: builtIn.wifi,
-        Audio: builtIn.audio,
-        Battery: builtIn.battery,
-        OS: builtIn.os,
-        Verdict: builtIn.verdict,
-      };
-      compareSpecsCache.set(cacheKey, { timestamp: Date.now(), specs: payload });
-      return res.json({ success: true, specs: payload, cached: true });
-    }
-
-    const clientIp = getClientIp(req);
-    if (isRateLimited(`compare_autoadd_${clientIp}`, 2, 60 * 60 * 1000)) {
-      return res.status(429).json({
-        success: false,
-        error: 'Auto-Add limit reached (max 2 custom phones per hour). Please select from the built-in device list or try again later.',
-      });
-    }
-
-    const generated = generateDeterministicPhoneSpecs(rawName);
-    const payload = {
-      Name: generated.name,
-      Price: generated.price,
-      Processor: generated.cpu,
-      Fab: generated.nm,
-      AnTuTu: generated.antutu,
-      Geekbench: generated.geek,
-      Display: generated.display,
-      Protection: generated.build,
-      RAM: generated.ram,
-      RearCam: generated.cam_rear,
-      FrontCam: generated.cam_front,
-      Gaming: generated.gaming,
-      FiveG: generated.bands5g,
-      Connectivity: generated.wifi,
-      Audio: generated.audio,
-      Battery: generated.battery,
-      OS: generated.os,
-      Verdict: generated.verdict,
-    };
-
-    compareSpecsCache.set(cacheKey, { timestamp: Date.now(), specs: payload });
-    return res.json({ success: true, specs: payload, cached: false });
-  });
-
-  // -------------------------------------------------------------
-  // ZERO-TOKEN SOCIAL TECH RADAR (/api/social/radar)
-  // -------------------------------------------------------------
-  const CURATED_SOCIAL_RADAR_ITEMS = [
-    {
-      id: 'radar-1',
-      platform: 'X (Twitter)',
-      topic: '3nm Silicon Telemetry',
-      headline: 'Snapdragon 8 Elite vs Dimensity 9400 Sustained 120FPS Benchmarks',
-      summary: 'Independent hardware testers report 38% lower GPU power draw on second-generation 3nm TSMC N3E flagship chipsets.',
-      hashtags: ['#Snapdragon8Elite', '#Dimensity9400', '#CLASSIFYTECH'],
-      heatLabel: 'Trending Now',
-    },
-    {
-      id: 'radar-2',
-      platform: 'X / Weibo',
-      topic: 'Battery Chemistry',
-      headline: '7,500mAh Silicon-Carbon Batteries Enter Sub-8.1mm Flagship Production',
-      summary: 'Supply-chain leaks confirm high-density Si/C anode batteries with 100W PPS fast charging across upcoming flagships.',
-      hashtags: ['#ChinaFlagships', '#BatteryTech', '#CLASSIFYTECH'],
-      heatLabel: 'Hot Scoop',
-    },
-  ];
-
-  const handleSocialRadar = async (_req: Request, res: Response) => {
-    const updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return res.json({
-      success: true,
-      items: CURATED_SOCIAL_RADAR_ITEMS,
-      updatedAt,
-      cached: true,
-    });
-  };
-
-  app.get('/api/social/radar', handleSocialRadar);
-  app.post('/api/social/radar', handleSocialRadar);
 
   // -------------------------------------------------------------
   // GLOBAL YOUTUBE RSS PROXY (/api/youtube/global)
@@ -1405,12 +986,6 @@ async function startServer() {
       return res.sendFile(path.resolve(distPath, 'index.html'));
     }
     return next();
-  });
-
-  // Google Search Console HTML file verification route
-  app.get('/google239ae2d0e50d07f1.html', (_req: Request, res: Response) => {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.status(200).send('google-site-verification: google239ae2d0e50d07f1.html');
   });
 
   // Mount Vite in dev (AI Studio preview) or static dist/ in production (GitHub/Node deployment)

@@ -1156,6 +1156,69 @@ export async function fetchFeedWithCorsFallback(
 export const AUTO_REFRESH_INTERVAL_MS = 15 * 60 * 1000; // Kept at 15m for unit test compatibility
 export const HOURLY_SYNC_INTERVAL_MS = 60 * 60 * 1000; // Strict 60-minute (3,600,000 ms) hourly freshness sync
 export const BACKGROUND_SYNC_INTERVAL_MS = HOURLY_SYNC_INTERVAL_MS;
+export const MAX_SLIDING_WINDOW_ARTICLES = 100;
+
+/**
+ * Enforces a strict newest-first FIFO rolling window across incoming and existing articles:
+ * - Evicts static fallback articles whenever live articles are present (if staticFallbackIds provided)
+ * - Prepends incoming items ahead of existing items and deduplicates by normalized title & sourceUrl
+ * - Sorts strictly newest-first (`b.publishedAtMs - a.publishedAtMs`)
+ * - Slices strictly to `maxWindow` (default 100), automatically dropping older items
+ * - Promotes ONLY index 0 as `isHero: true`
+ */
+export function enforceRollingNewsWindow(
+  incoming: TechArticle[],
+  existing: TechArticle[] = [],
+  maxWindow: number = MAX_SLIDING_WINDOW_ARTICLES,
+  staticFallbackIds?: Set<string>
+): TechArticle[] {
+  const safeMax = Math.max(1, maxWindow);
+  const hasLiveIncoming =
+    staticFallbackIds && staticFallbackIds.size > 0
+      ? incoming.some((a) => a && !staticFallbackIds.has(a.id))
+      : false;
+
+  const candidatePool =
+    hasLiveIncoming && staticFallbackIds
+      ? [...incoming, ...existing].filter((a) => a && !staticFallbackIds.has(a.id))
+      : [...incoming, ...existing];
+
+  const nowMs = Date.now();
+  const seenTitles = new Set<string>();
+  const seenUrls = new Set<string>();
+  const deduped: TechArticle[] = [];
+
+  for (const item of candidatePool) {
+    if (!item || !item.title) continue;
+    const titleKey = item.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const urlKey = (item.sourceUrl || '').toLowerCase().trim();
+    if (!titleKey || seenTitles.has(titleKey)) continue;
+    if (urlKey && urlKey.length > 12 && seenUrls.has(urlKey)) continue;
+
+    seenTitles.add(titleKey);
+    if (urlKey && urlKey.length > 12) seenUrls.add(urlKey);
+
+    const clampedMs =
+      typeof item.publishedAtMs === 'number' &&
+      Number.isFinite(item.publishedAtMs) &&
+      item.publishedAtMs > 0
+        ? Math.min(nowMs, item.publishedAtMs)
+        : nowMs - 7 * 24 * 3600 * 1000;
+
+    deduped.push({
+      ...item,
+      desc: sanitizeSummaryDescription(item.desc, item.title),
+      publishedAtMs: clampedMs,
+    });
+  }
+
+  deduped.sort((a, b) => b.publishedAtMs - a.publishedAtMs);
+
+  return deduped.slice(0, safeMax).map((art, idx) => ({
+    ...art,
+    isHero: idx === 0,
+  }));
+}
 
 export interface GlobalTrendingNewsResult {
   articles: TechArticle[];
@@ -1175,7 +1238,10 @@ export async function fetchGlobalTrendingNews(options?: {
   fetchFn?: typeof fetch;
 }): Promise<GlobalTrendingNewsResult> {
   const fetchImpl = options?.fetchFn ?? fetch;
-  const limit = Math.min(Math.max(6, options?.limit ?? 60), 60);
+  const limit = Math.min(
+    Math.max(6, options?.limit ?? MAX_SLIDING_WINDOW_ARTICLES),
+    MAX_SLIDING_WINDOW_ARTICLES
+  );
   const cb = Date.now();
   const endpoint =
     options?.apiEndpoint ||

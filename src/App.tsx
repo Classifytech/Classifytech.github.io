@@ -17,10 +17,8 @@ import { defaultTechArticles, TechArticle } from './data/newsData.ts';
 import {
   fetchGlobalTrendingNews,
   HOURLY_SYNC_INTERVAL_MS,
-  sanitizeSummaryDescription,
+  enforceRollingNewsWindow,
 } from './utils/rssParser.ts';
-import { fetchTrendingTechTweets } from './utils/socialRadar.ts';
-import { fetchTrendingTechVideos } from './utils/youtubeApi.ts';
 import { BUILT_IN_SMARTPHONE_DB } from './utils/phoneComparator.ts';
 import {
   type ComparisonCategoryId,
@@ -41,14 +39,6 @@ import {
 
 import { CheckCircle2 } from 'lucide-react';
 
-declare global {
-  interface Window {
-    fetchGlobalTrendingNews?: typeof fetchGlobalTrendingNews;
-    fetchTrendingTechTweets?: typeof fetchTrendingTechTweets;
-    fetchTrendingTechVideos?: typeof fetchTrendingTechVideos;
-  }
-}
-
 const DEFAULT_DOCUMENT_TITLE =
   'CLASSIFY TECH — Trending Tech News, Leaks & Comparison';
 
@@ -56,7 +46,7 @@ const LIVE_ARTICLES_CACHE_KEY = 'classify_articles_v10_global_wire';
 const LIVE_ARTICLES_SYNC_TS_KEY = 'classify_articles_last_sync_ms';
 const LIVE_SESSION_SYNC_KEY = 'classify_live_session_synced';
 const LIVE_ARTICLES_CACHE_TTL_MS = HOURLY_SYNC_INTERVAL_MS; // Strict 60-minute (3,600,000 ms) freshness window
-const MAX_SLIDING_WINDOW_ARTICLES = 60;
+const MAX_SLIDING_WINDOW_ARTICLES = 100;
 const STATIC_FALLBACK_IDS = new Set(defaultTechArticles.map((a) => a.id));
 
 export default function App() {
@@ -64,8 +54,6 @@ export default function App() {
 
   const [articles, setArticles] = useState<TechArticle[]>(() => {
     try {
-      localStorage.removeItem('classify_articles_v6');
-      localStorage.removeItem('classify_articles_v8_live');
       const saved = localStorage.getItem(LIVE_ARTICLES_CACHE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -76,11 +64,11 @@ export default function App() {
           Array.isArray(parsed.articles) &&
           parsed.articles.length >= 6
         ) {
-          return parsed.articles;
+          return enforceRollingNewsWindow(parsed.articles, [], MAX_SLIDING_WINDOW_ARTICLES);
         }
       }
     } catch {}
-    return defaultTechArticles;
+    return enforceRollingNewsWindow(defaultTechArticles, [], MAX_SLIDING_WINDOW_ARTICLES);
   });
 
   // Modal states
@@ -271,15 +259,6 @@ export default function App() {
     }, 3800);
   };
 
-  // Expose Automation Hooks on window for external API integration
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.fetchGlobalTrendingNews = fetchGlobalTrendingNews;
-      window.fetchTrendingTechTweets = fetchTrendingTechTweets;
-      window.fetchTrendingTechVideos = fetchTrendingTechVideos;
-    }
-  }, []);
-
   // Dynamically update document.title and OpenGraph / Meta description when live news loads, a story opens, or comparing gadgets (Google Discover & Viral SEO)
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -428,7 +407,7 @@ export default function App() {
    * Silently fetches latest global & China trending tech news in the background.
    * Merges incoming stories at the front (`[...freshArticles, ...prev]`), evicts static fallback
    * stories once live articles arrive, sorts strictly newest-first (`b.publishedAtMs - a.publishedAtMs`),
-   * promotes ONLY index 0 as Hero, and maintains a sliding window of 60 live stories.
+   * promotes ONLY index 0 as Hero, and enforces a strict FIFO rolling window of 100 live stories.
    */
   const fetchLiveRssNews = async () => {
     try {
@@ -436,50 +415,14 @@ export default function App() {
       const freshArticles = result.articles;
 
       if (freshArticles.length > 0) {
-        setArticles((prev) => {
-          const hasLiveFresh = freshArticles.some((a) => !STATIC_FALLBACK_IDS.has(a.id));
-          const candidatePool = hasLiveFresh
-            ? [...freshArticles, ...prev].filter((a) => a && !STATIC_FALLBACK_IDS.has(a.id))
-            : [...freshArticles, ...prev];
-
-          const nowMs = Date.now();
-          const seenTitles = new Set<string>();
-          const seenUrls = new Set<string>();
-          const deduped: TechArticle[] = [];
-
-          for (const item of candidatePool) {
-            if (!item || !item.title) continue;
-            const titleKey = item.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-            const urlKey = (item.sourceUrl || '').toLowerCase().trim();
-            if (!titleKey || seenTitles.has(titleKey)) continue;
-            if (urlKey && urlKey.length > 12 && seenUrls.has(urlKey)) continue;
-
-            seenTitles.add(titleKey);
-            if (urlKey && urlKey.length > 12) seenUrls.add(urlKey);
-
-            const clampedMs =
-              typeof item.publishedAtMs === 'number' &&
-              Number.isFinite(item.publishedAtMs) &&
-              item.publishedAtMs > 0
-                ? Math.min(nowMs, item.publishedAtMs)
-                : nowMs - 7 * 24 * 3600 * 1000;
-
-            deduped.push({
-              ...item,
-              desc: sanitizeSummaryDescription(item.desc, item.title),
-              publishedAtMs: clampedMs,
-            });
-          }
-
-          // Strict newest-first chronological sort
-          deduped.sort((a, b) => b.publishedAtMs - a.publishedAtMs);
-
-          // Dynamically promote ONLY the #1 newest live article as Hero
-          return deduped.slice(0, MAX_SLIDING_WINDOW_ARTICLES).map((art, idx) => ({
-            ...art,
-            isHero: idx === 0,
-          }));
-        });
+        setArticles((prev) =>
+          enforceRollingNewsWindow(
+            freshArticles,
+            prev,
+            MAX_SLIDING_WINDOW_ARTICLES,
+            STATIC_FALLBACK_IDS
+          )
+        );
         try {
           localStorage.setItem(LIVE_ARTICLES_SYNC_TS_KEY, String(Date.now()));
           sessionStorage.setItem(LIVE_SESSION_SYNC_KEY, '1');
@@ -529,44 +472,8 @@ export default function App() {
     };
   }, []);
 
-  // Load server-persisted custom articles & silently resync when internet reconnects
+  // Silently resync when internet reconnects
   useEffect(() => {
-    const loadServerContent = async () => {
-      try {
-        const host = typeof window !== 'undefined' ? window.location.hostname : '';
-        const isLocalPreview =
-          host === 'localhost' || host === '127.0.0.1' || host.endsWith('.run.app');
-        if (!isLocalPreview) return;
-
-        const res = await fetch('/api/content', { headers: { Accept: 'application/json' } });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.customNews) && data.customNews.length > 0) {
-            setArticles((prev) => {
-              const seen = new Set(prev.map((a) => a.id));
-              const newItems = data.customNews
-                .filter((a: TechArticle) => a && !seen.has(a.id))
-                .map((a: TechArticle) => ({
-                  ...a,
-                  publishedAtMs: a.publishedAtMs || Date.now() - 24 * 3600 * 1000,
-                }));
-              const combined = [...newItems, ...prev];
-              combined.sort((a, b) => b.publishedAtMs - a.publishedAtMs);
-              return combined.slice(0, MAX_SLIDING_WINDOW_ARTICLES).map((art, idx) => ({
-                ...art,
-                isHero: idx === 0,
-              }));
-            });
-          }
-        }
-      } catch {
-        // Pure client-side hosting (e.g. Blogger) runs without /api/content
-      }
-    };
-
-    loadServerContent();
-
     const handleOnline = () => {
       void fetchLiveRssNews();
     };
@@ -599,12 +506,13 @@ export default function App() {
     } catch {}
   }, [articles]);
 
-  // Sync state to localStorage with 15-minute freshness timestamp
+  // Sync state to localStorage strictly capped to MAX_SLIDING_WINDOW_ARTICLES (100)
   useEffect(() => {
     try {
+      const cappedArticles = articles.slice(0, MAX_SLIDING_WINDOW_ARTICLES);
       localStorage.setItem(
         LIVE_ARTICLES_CACHE_KEY,
-        JSON.stringify({ timestamp: Date.now(), articles })
+        JSON.stringify({ timestamp: Date.now(), articles: cappedArticles })
       );
     } catch {}
   }, [articles]);

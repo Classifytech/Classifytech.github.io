@@ -151,49 +151,6 @@ export function isDummyOrBrokenLink(affiliateUrl?: string): boolean {
 }
 
 /**
- * Inspects URL parameters for affiliate IDs and Meta/Facebook tracking attribution.
- */
-export interface DetectedTrackingParams {
-  hasFlipkartPid: boolean;
-  hasAmazonTag: boolean;
-  hasFlipkartAffid: boolean;
-  hasMyntraAffiliateId: boolean;
-  hasEncryptedPayload: boolean;
-  hasCts: boolean;
-  hasUtmZigId: boolean;
-  hasContentSourceFb: boolean;
-  hasChannelTypeFb: boolean;
-}
-
-export function analyzeTrackingParams(url?: string): DetectedTrackingParams {
-  if (!url) {
-    return {
-      hasFlipkartPid: false,
-      hasAmazonTag: false,
-      hasFlipkartAffid: false,
-      hasMyntraAffiliateId: false,
-      hasEncryptedPayload: false,
-      hasCts: false,
-      hasUtmZigId: false,
-      hasContentSourceFb: false,
-      hasChannelTypeFb: false,
-    };
-  }
-  const lower = url.toLowerCase();
-  return {
-    hasFlipkartPid: lower.includes('pid='),
-    hasAmazonTag: lower.includes('tag=classifytech-21'),
-    hasFlipkartAffid: lower.includes('affid='),
-    hasMyntraAffiliateId: lower.includes('affiliate_id='),
-    hasEncryptedPayload: lower.includes('encrypted_payload='),
-    hasCts: lower.includes('cts='),
-    hasUtmZigId: lower.includes('utm_zig_id='),
-    hasContentSourceFb: lower.includes('content_source=fb'),
-    hasChannelTypeFb: lower.includes('channel_type=fb'),
-  };
-}
-
-/**
  * Generates a collision-safe alphanumeric short code.
  */
 export function generateShortCode(length = 6): string {
@@ -752,49 +709,6 @@ export async function shortenUrlWithWorker(
     shortCode,
     shortUrl,
     error: null,
-  };
-}
-
-/**
- * Scans promotional text for Amazon/Flipkart/Myntra URLs, processes each through the Worker,
- * and replaces them with branded website short links.
- */
-export async function processDealPostText(
-  rawText: string,
-  customCode?: string
-): Promise<{
-  updatedText: string;
-  results: WorkerShortenResponse[];
-  hasUrls: boolean;
-}> {
-  const urls = extractUrlsFromText(rawText);
-  if (urls.length === 0) {
-    return { updatedText: rawText, results: [], hasUrls: false };
-  }
-
-  const uniqueUrls = Array.from(new Set(urls));
-  const results: WorkerShortenResponse[] = [];
-  let replacedText = rawText;
-
-  for (let i = 0; i < uniqueUrls.length; i++) {
-    const targetUrl = uniqueUrls[i];
-    const aliasForUrl = uniqueUrls.length === 1 && customCode ? customCode : undefined;
-    const workerRes = await shortenUrlWithWorker(targetUrl, aliasForUrl);
-    results.push(workerRes);
-
-    if (workerRes.success && (workerRes.shortUrl || workerRes.affiliateUrl || workerRes.shortCode)) {
-      const code = workerRes.shortCode;
-      const replacement = code
-        ? buildBrandedShortUrl(code, typeof window !== 'undefined' ? window.location.origin : undefined)
-        : (workerRes.shortUrl || workerRes.affiliateUrl || targetUrl);
-      replacedText = replacedText.split(targetUrl).join(replacement);
-    }
-  }
-
-  return {
-    updatedText: replacedText,
-    results,
-    hasUrls: true,
   };
 }
 

@@ -33,8 +33,39 @@ test('index.html remains intact for Vite/AI Studio/GitHub and hourly sync interv
   assert.equal(HOURLY_SYNC_INTERVAL_MS, 60 * 60 * 1000, 'Hourly sync interval must be exactly 60 minutes');
 });
 
-test('Workspace has no leftover Netlify config files or _redirects', () => {
+test('Workspace has no leftover Netlify config files, unused build scripts, or duplicate GSC verification files', () => {
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'netlify.toml')), false);
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'netlify')), false);
   assert.equal(fs.existsSync(path.resolve(process.cwd(), 'public/_redirects')), false);
+  assert.equal(fs.existsSync(path.resolve(process.cwd(), 'scripts/build-blogger-theme.mjs')), false);
+  assert.equal(fs.existsSync(path.resolve(process.cwd(), 'src/utils/aiSummaryHook.ts')), false);
+  assert.equal(fs.existsSync(path.resolve(process.cwd(), 'bun.lock')), false);
+
+  // Single canonical Google Search Console verification file in public/
+  assert.equal(fs.existsSync(path.resolve(process.cwd(), 'public/google239ae2d0e50d07f1.html')), true);
+  assert.equal(fs.existsSync(path.resolve(process.cwd(), 'google239ae2d0e50d07f1.html')), false);
+  assert.equal(
+    fs.existsSync(path.resolve(process.cwd(), 'public/assets/aistudio/google239ae2d0e50d07f1_dd68f7e7.html')),
+    false
+  );
+
+  // Clean data files (no dummy test entries)
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'src/data/contact_submissions.json'), 'utf-8')),
+    []
+  );
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'src/data/news_reports.json'), 'utf-8')),
+    []
+  );
+
+  // Dead backend routes removed & CSP tightened
+  const serverCode = fs.readFileSync(SERVER_TS_PATH, 'utf-8');
+  for (const deadRoute of ['/api/content', '/api/news/article', '/api/compare/specs', '/api/social/radar', '/google239ae2d0e50d07f1.html']) {
+    assert.equal(serverCode.includes(deadRoute), false, `server.ts must not contain dead route ${deadRoute}`);
+  }
+  const connectSrcMatch = serverCode.match(/connect-src[^;]+;/);
+  assert.ok(connectSrcMatch, 'server.ts should define connect-src CSP');
+  assert.equal(/\shttps:(?:\s|;|'|")/.test(connectSrcMatch[0]), false, 'connect-src CSP must not allow bare https:');
 });
+

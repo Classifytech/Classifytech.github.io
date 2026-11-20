@@ -100,22 +100,6 @@ html.dark .grad-text {
   animation-play-state: paused;
 }
 
-.spec-divider {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0.3rem 0;
-  width: 100%;
-}
-
-.spec-divider::before,
-.spec-divider::after {
-  content: '';
-  flex: 1;
-  border-bottom: 1px solid rgba(14, 165, 233, 0.22);
-}
-
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

@@ -8,7 +8,6 @@ import {
   COLLISION_SAFE_CHARS,
   extractUrlsFromText,
   isDummyOrBrokenLink,
-  analyzeTrackingParams,
   extractDestinationFromWorkerResponse,
   saveShortCodeToCache,
   getShortCodeFromCache,
@@ -103,20 +102,6 @@ test('isDummyOrBrokenLink accurately detects placeholder Flipkart links lacking 
   assert.equal(isDummyOrBrokenLink('https://www.flipkart.com/item/p/product?pid=MOB123XYZ&affid=test'), false);
   assert.equal(isDummyOrBrokenLink('https://www.amazon.in/dp/B0CHX1W1XY?tag=classifytech-21'), false);
   assert.equal(isDummyOrBrokenLink(undefined), true);
-});
-
-test('analyzeTrackingParams detects affiliate credentials and Meta/Facebook tracking attribution untouched', () => {
-  const testUrl =
-    'https://www.flipkart.com/item/p/itm123?pid=MOB123&affid=inf_ed6b592b-00d1-46f4-bdb7-6aa275ecb425&affiliate_id=5bp2vHe2zIpgR54z&encrypted_payload=abc789&cts=1700000000&utm_zig_id=zig_1&content_source=fb&channel_type=fb';
-  const params = analyzeTrackingParams(testUrl);
-  assert.equal(params.hasFlipkartPid, true);
-  assert.equal(params.hasFlipkartAffid, true);
-  assert.equal(params.hasMyntraAffiliateId, true);
-  assert.equal(params.hasEncryptedPayload, true);
-  assert.equal(params.hasCts, true);
-  assert.equal(params.hasUtmZigId, true);
-  assert.equal(params.hasContentSourceFb, true);
-  assert.equal(params.hasChannelTypeFb, true);
 });
 
 test('extractDestinationFromWorkerResponse preserves Worker affiliateUrl untouched with tag=classifytech-21 at the end', () => {

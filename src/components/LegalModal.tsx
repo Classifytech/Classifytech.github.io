@@ -6,11 +6,9 @@ import {
   FileText,
   Award,
   Mail,
-  Server,
   EyeOff,
   Lock,
   Link2,
-  Cloud,
   CheckCircle2,
 } from 'lucide-react';
 

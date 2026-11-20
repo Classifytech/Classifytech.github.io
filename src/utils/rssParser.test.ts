@@ -9,6 +9,8 @@ import {
   transformRssItemToArticle,
   FREE_TECH_RSS_FEEDS,
   AUTO_REFRESH_INTERVAL_MS,
+  MAX_SLIDING_WINDOW_ARTICLES,
+  enforceRollingNewsWindow,
   type Rss2JsonItem,
 } from './rssParser.ts';
 
@@ -261,6 +263,68 @@ test('cleanHtmlText and transformRssItemToArticle strip broken WordPress data-me
   assert.equal(article.category, 'BATTERY');
 });
 
+test('enforceRollingNewsWindow strictly sorts newest-first, deduplicates, promotes only index 0 as Hero, evicts static fallbacks, and hard-caps at 100 articles', () => {
+  assert.equal(MAX_SLIDING_WINDOW_ARTICLES, 100);
 
+  const baseTime = Date.UTC(2026, 10, 20, 12, 0, 0);
+  const makeArticle = (idx: number, publishedAtMs: number, overrides: Partial<ReturnType<typeof transformRssItemToArticle>> = {}) => ({
+    ...transformRssItemToArticle(
+      {
+        title: `Tech Story #${idx}`,
+        pubDate: new Date(publishedAtMs).toUTCString(),
+        link: `https://example.com/story-${idx}`,
+        description: `Summary for story ${idx}.`,
+      },
+      'GSMArena'
+    ),
+    id: `story-${idx}`,
+    publishedAtMs,
+    ...overrides,
+  });
 
+  // Existing 95 older articles + 2 static fallback IDs
+  const existing = [
+    ...Array.from({ length: 95 }, (_, i) => makeArticle(i + 1, baseTime - (i + 20) * 60_000, { isHero: i === 0 })),
+    makeArticle(999, baseTime - 500 * 60_000, { id: 'static-fallback-1' }),
+    makeArticle(1000, baseTime - 501 * 60_000, { id: 'static-fallback-2' }),
+  ];
 
+  // Incoming 20 newer articles (including 1 duplicate of an existing story and out-of-order timestamps)
+  const incoming = [
+    makeArticle(105, baseTime + 5 * 60_000),
+    makeArticle(120, baseTime + 20 * 60_000), // newest overall
+    ...Array.from({ length: 18 }, (_, i) => makeArticle(200 + i, baseTime + (i + 1) * 60_000)),
+    makeArticle(1, baseTime - 20 * 60_000), // duplicate of story-1
+  ];
+
+  const windowed = enforceRollingNewsWindow(
+    incoming,
+    existing,
+    MAX_SLIDING_WINDOW_ARTICLES,
+    new Set(['static-fallback-1', 'static-fallback-2'])
+  );
+
+  // Hard cap at 100 articles
+  assert.equal(windowed.length, 100);
+
+  // Strictly sorted newest-first
+  for (let i = 1; i < windowed.length; i += 1) {
+    assert.ok(
+      (windowed[i - 1].publishedAtMs ?? 0) >= (windowed[i].publishedAtMs ?? 0),
+      `Expected item ${i - 1} to be newer than or equal to item ${i}`
+    );
+  }
+
+  // Only index 0 is Hero and it is the absolute newest incoming article
+  assert.equal(windowed[0].id, 'story-120');
+  assert.equal(windowed[0].isHero, true);
+  assert.ok(windowed.slice(1).every((a) => !a.isHero), 'Only index 0 should have isHero=true');
+
+  // Static fallback items evicted when live articles exist
+  assert.equal(windowed.some((a) => a.id === 'static-fallback-1' || a.id === 'static-fallback-2'), false);
+
+  // Deduplicated: no duplicate IDs and oldest articles beyond top 100 dropped
+  const uniqueIds = new Set(windowed.map((a) => a.id));
+  assert.equal(uniqueIds.size, 100);
+  assert.equal(uniqueIds.has('story-95'), false, 'Oldest article past 100 cap must be evicted');
+});

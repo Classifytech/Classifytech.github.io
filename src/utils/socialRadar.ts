@@ -1,7 +1,6 @@
 /**
  * CLASSIFY TECH Omnichannel Social Tech Radar & Community Channels
- * Connects to /api/social/radar (server-side Gemini intelligence) and provides
- * official verified CLASSIFY TECH social channel metadata for Masonry Embeds.
+ * Provides official verified CLASSIFY TECH social channel metadata and tipster scoop utilities.
  */
 
 export interface SocialRadarCard {
@@ -14,12 +13,6 @@ export interface SocialRadarCard {
   heatLabel: string;
 }
 
-export interface SocialRadarResult {
-  items: SocialRadarCard[];
-  updatedAt: string;
-  cached?: boolean;
-}
-
 export interface OfficialSocialChannel {
   id: 'x' | 'instagram' | 'facebook';
   platform: string;
@@ -30,8 +23,6 @@ export interface OfficialSocialChannel {
   badgeText: string;
   ctaLabel: string;
 }
-
-export const SOCIAL_RADAR_ENDPOINT = '/api/social/radar';
 
 export const OFFICIAL_SOCIAL_EMBEDS: OfficialSocialChannel[] = [
   {
@@ -112,54 +103,6 @@ export function normalizeSocialRadarItems(rawItems: unknown): SocialRadarCard[] 
   }
 
   return normalized;
-}
-
-/**
- * Fetches trending social tech summaries across X, Reddit, and Instagram from
- * the server-side Gemini endpoint (/api/social/radar).
- */
-export async function fetchTrendingSocialTech(options?: {
-  refresh?: boolean;
-  fetchFn?: typeof fetch;
-}): Promise<SocialRadarResult> {
-  const fetchImpl = options?.fetchFn ?? fetch;
-  const endpoint = options?.refresh
-    ? `${SOCIAL_RADAR_ENDPOINT}?refresh=true`
-    : SOCIAL_RADAR_ENDPOINT;
-
-  const response = await fetchImpl(endpoint, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-  });
-
-  let payload: any = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok || (payload && payload.success === false)) {
-    const message =
-      payload && typeof payload.error === 'string' && payload.error.trim().length > 0
-        ? payload.error.trim()
-        : 'Social Tech Radar temporarily unavailable.';
-    throw new Error(message);
-  }
-
-  const items = normalizeSocialRadarItems(payload?.items);
-  if (items.length === 0) {
-    throw new Error('No Social Tech Radar briefings returned.');
-  }
-
-  return {
-    items,
-    updatedAt:
-      typeof payload?.updatedAt === 'string' && payload.updatedAt.trim()
-        ? payload.updatedAt.trim()
-        : 'Live',
-    cached: Boolean(payload?.cached),
-  };
 }
 
 export interface TechLeakTweet {
